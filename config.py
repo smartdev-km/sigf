@@ -23,6 +23,12 @@ def _database_uri():
     # Render fournit parfois "postgres://", SQLAlchemy attend "postgresql://"
     if uri.startswith("postgres://"):
         uri = uri.replace("postgres://", "postgresql://", 1)
+    if os.environ.get("RENDER") and uri.startswith("sqlite"):
+        # Sans DATABASE_URL, l'application utiliserait un fichier SQLite effacé à chaque déploiement : on refuse plutôt que de perdre les données.
+        raise RuntimeError(
+            "DATABASE_URL n'est pas défini : créez une base PostgreSQL sur Render et copiez son adresse "
+            "(Internal Database URL) dans la variable d'environnement DATABASE_URL du service."
+        )
     return uri
 
 

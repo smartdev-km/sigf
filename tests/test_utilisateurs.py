@@ -479,3 +479,29 @@ def test_creation_de_l_admin_depuis_l_environnement(app, monkeypatch):
     assert r.exit_code == 0 and "existe déjà" in r.output
     with app.app_context():
         assert User.query.filter_by(username="chef.admin").one().check_password("un-mot-de-passe-solide")
+
+
+def test_base_sans_tables_donne_un_message_clair(app, monkeypatch):
+    runner = app.test_cli_runner()
+    monkeypatch.setenv("INITIAL_ADMIN_USERNAME", "admin2")
+    monkeypatch.setenv("INITIAL_ADMIN_PASSWORD", "un-mot-de-passe-solide")
+    with app.app_context():
+        db.drop_all()
+    r = runner.invoke(args=["create-admin-env"])
+    assert r.exit_code != 0 and "pas de tables" in r.output and "db upgrade" in r.output
+
+
+def test_sur_render_sans_base_postgresql_on_refuse_sqlite(monkeypatch):
+    import pytest
+
+    import config
+
+    monkeypatch.setenv("RENDER", "true")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    with pytest.raises(RuntimeError, match="DATABASE_URL"):
+        config._database_uri()
+    monkeypatch.setenv("DATABASE_URL", "postgres://u:p@h/db")
+    assert config._database_uri().startswith("postgresql://")
+    monkeypatch.delenv("RENDER")
+    monkeypatch.delenv("DATABASE_URL")
+    assert config._database_uri().startswith("sqlite")                    # en local : SQLite, comme avant

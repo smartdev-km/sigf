@@ -170,13 +170,23 @@ def _enregistrer_commandes(app):
         la commande peut donc rester dans la commande de build sans danger ; supprimez ensuite INITIAL_ADMIN_PASSWORD."""
         from .models import User
 
+        from sqlalchemy.exc import OperationalError, ProgrammingError
+
         username = (os.environ.get("INITIAL_ADMIN_USERNAME") or "").strip().lower()
         nom = (os.environ.get("INITIAL_ADMIN_NOM") or "Administrateur").strip()
         password = os.environ.get("INITIAL_ADMIN_PASSWORD") or ""
         if not username or not password:
             click.echo("Aucun administrateur à créer (INITIAL_ADMIN_USERNAME / INITIAL_ADMIN_PASSWORD absents).")
             return
-        if User.query.filter_by(role=C.ADMIN).first():
+        try:
+            admin_existant = User.query.filter_by(role=C.ADMIN).first()
+        except (OperationalError, ProgrammingError):
+            db.session.rollback()
+            raise click.ClickException(
+                "La base n'a pas de tables : lancez d'abord « flask --app wsgi db upgrade » (avant create-admin-env dans la commande de build) "
+                "et vérifiez que DATABASE_URL pointe vers votre base PostgreSQL."
+            ) from None
+        if admin_existant:
             click.echo("Un administrateur existe déjà : rien à faire (vous pouvez supprimer INITIAL_ADMIN_PASSWORD).")
             return
         minimum = app.config["MDP_LONGUEUR_MIN"]
