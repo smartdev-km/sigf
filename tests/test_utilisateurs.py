@@ -444,3 +444,38 @@ def test_tous_les_mouvements_du_journal_ont_un_libelle_francais(app, login):
     codes -= {"erreur_saisie"}                                                                # type de problème, pas un mouvement du journal
     manquants = sorted(c for c in codes if c not in activite.ACTIONS and c not in ("connexion_echec",))
     assert manquants == []
+
+
+# ------------------------------------------------------------------ premier administrateur créé depuis l'environnement (hébergement sans terminal)
+def test_creation_de_l_admin_depuis_l_environnement(app, monkeypatch):
+    from app.models import User
+
+    runner = app.test_cli_runner()
+    with app.app_context():
+        User.query.filter_by(role=C.ADMIN).delete()
+        db.session.commit()
+    r = runner.invoke(args=["create-admin-env"])
+    assert r.exit_code == 0 and "Aucun administrateur à créer" in r.output                       # sans variables : rien
+
+    monkeypatch.setenv("INITIAL_ADMIN_USERNAME", "Chef.Admin")
+    monkeypatch.setenv("INITIAL_ADMIN_NOM", "Chef de service")
+    monkeypatch.setenv("INITIAL_ADMIN_PASSWORD", "court")
+    r = runner.invoke(args=["create-admin-env"])
+    assert r.exit_code != 0 and "trop court" in r.output
+    with app.app_context():
+        assert User.query.filter_by(role=C.ADMIN).count() == 0
+
+    monkeypatch.setenv("INITIAL_ADMIN_PASSWORD", "un-mot-de-passe-solide")
+    r = runner.invoke(args=["create-admin-env"])
+    assert r.exit_code == 0 and "Administrateur chef.admin créé" in r.output
+    with app.app_context():
+        u = User.query.filter_by(username="chef.admin").one()
+        assert u.role == C.ADMIN and u.nom == "Chef de service" and u.check_password("un-mot-de-passe-solide") and not u.doit_changer_mdp
+    assert app.test_client().post("/connexion", data={"username": "chef.admin", "password": "un-mot-de-passe-solide"}).status_code == 302
+
+    # idempotent : un administrateur existe, la commande ne touche à rien (même avec un autre mot de passe)
+    monkeypatch.setenv("INITIAL_ADMIN_PASSWORD", "autre-mot-de-passe-solide")
+    r = runner.invoke(args=["create-admin-env"])
+    assert r.exit_code == 0 and "existe déjà" in r.output
+    with app.app_context():
+        assert User.query.filter_by(username="chef.admin").one().check_password("un-mot-de-passe-solide")

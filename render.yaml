@@ -3,7 +3,7 @@ services:
     name: sigf
     runtime: python
     plan: starter
-    buildCommand: pip install -r requirements.txt && flask --app wsgi db upgrade && flask --app wsgi init-data
+    buildCommand: pip install -r requirements.txt && flask --app wsgi db upgrade && flask --app wsgi init-data && flask --app wsgi create-admin-env
     startCommand: gunicorn wsgi:app --workers 2 --timeout 60
     envVars:
       - key: PYTHON_VERSION

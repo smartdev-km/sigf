@@ -163,6 +163,33 @@ def _enregistrer_commandes(app):
                 click.echo(f"{'':16}vérification {type_doc}: /verifier/{code}")
         click.echo(f"{len(resume)} dossier(s) de démonstration créés.")
 
+    @app.cli.command("create-admin-env")
+    def create_admin_env():
+        """Crée le premier administrateur depuis les variables INITIAL_ADMIN_USERNAME, INITIAL_ADMIN_NOM et INITIAL_ADMIN_PASSWORD
+        (pour les hébergements sans terminal). Ne fait rien si les variables sont absentes ou si un administrateur existe déjà :
+        la commande peut donc rester dans la commande de build sans danger ; supprimez ensuite INITIAL_ADMIN_PASSWORD."""
+        from .models import User
+
+        username = (os.environ.get("INITIAL_ADMIN_USERNAME") or "").strip().lower()
+        nom = (os.environ.get("INITIAL_ADMIN_NOM") or "Administrateur").strip()
+        password = os.environ.get("INITIAL_ADMIN_PASSWORD") or ""
+        if not username or not password:
+            click.echo("Aucun administrateur à créer (INITIAL_ADMIN_USERNAME / INITIAL_ADMIN_PASSWORD absents).")
+            return
+        if User.query.filter_by(role=C.ADMIN).first():
+            click.echo("Un administrateur existe déjà : rien à faire (vous pouvez supprimer INITIAL_ADMIN_PASSWORD).")
+            return
+        minimum = app.config["MDP_LONGUEUR_MIN"]
+        if len(password) < minimum:
+            raise click.ClickException(f"INITIAL_ADMIN_PASSWORD est trop court (minimum {minimum} caractères).")
+        if User.query.filter_by(username=username).first():
+            raise click.ClickException("Cet identifiant existe déjà.")
+        u = User(nom=nom, username=username, role=C.ADMIN, doit_changer_mdp=False)
+        u.set_password(password)
+        db.session.add(u)
+        db.session.commit()
+        click.echo(f"Administrateur {username} créé. Supprimez maintenant la variable INITIAL_ADMIN_PASSWORD.")
+
     @app.cli.command("verifier-stockage")
     def verifier_stockage():
         """Vérifie le stockage des fichiers : écrit, relit puis supprime un petit fichier d'essai (utile après avoir renseigné les variables S3_*)."""
