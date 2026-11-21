@@ -1,0 +1,30 @@
+{# demandes de modification en attente : `demandes`, `lignes`, `rapprochements` (facultatif), `peut_decider`, `depuis` #}
+{% for m in demandes %}
+<div class="card border-warning mb-3"><div class="card-body">
+  <div class="d-flex justify-content-between flex-wrap gap-2">
+    <div>
+      <div class="fw-semibold"><i class="bi bi-hourglass-split text-warning me-1"></i>Modification en attente de validation
+        {% if depuis == 'liste' %}— <a class="text-decoration-none" href="{{ url_for('proprietaires.profil', proprietaire_id=m.proprietaire_id) }}">{{ m.proprietaire.nom_complet }}</a>{% endif %}</div>
+      <div class="small text-muted">Demandée par {{ m.saisi_par.nom }} le {{ m.saisi_at|dt }} · motif : {{ m.motif }}</div>
+    </div>
+  </div>
+  <table class="table table-sm mt-2 mb-2"><thead><tr><th>Champ</th><th>Avant</th><th>Après</th></tr></thead><tbody>
+    {% for champ, avant, apres in lignes(m) %}<tr><td>{{ champ }}</td><td class="text-muted">{{ avant }}</td><td class="fw-semibold">{{ apres }}</td></tr>{% endfor %}
+  </tbody></table>
+  {% if rapprochements %}{% for autre in rapprochements(m) %}
+  <div class="alert alert-info py-2 small mb-2"><i class="bi bi-info-circle me-1"></i>Cette pièce d'identité est déjà celle de <strong>{{ autre.nom_complet }}</strong> : à la validation, les deux fiches seront regroupées comme une seule personne.</div>
+  {% endfor %}{% endif %}
+  <div class="small text-muted mb-2">À la validation, ces valeurs remplacent celles de toutes les fiches de cette personne, dans tous ses dossiers. Les documents déjà imprimés deviennent « non à jour ».</div>
+  {% if peut_decider %}
+  <div class="d-flex flex-wrap gap-2">
+    <form method="post" action="{{ url_for('proprietaires.valider_modification', demande_id=m.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="depuis" value="{{ depuis }}">
+      <button class="btn btn-success btn-sm"><i class="bi bi-check-lg me-1"></i>Valider</button></form>
+    <form method="post" class="d-flex gap-2" action="{{ url_for('proprietaires.rejeter_modification', demande_id=m.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="depuis" value="{{ depuis }}">
+      <input class="form-control form-control-sm" name="motif" placeholder="Motif du rejet" required>
+      <button class="btn btn-outline-danger btn-sm">Rejeter</button></form>
+  </div>
+  {% endif %}
+</div></div>
+{% endfor %}

@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Carte{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/carte.css') }}">{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="h3 mb-0">Carte des parcelles</h1>
+    <div class="text-muted small" id="compte-carte">Chargement…</div>
+  </div>
+  {% if ile_fixe %}<span class="badge text-bg-light border fs-6"><i class="bi bi-geo-alt me-1"></i>{{ iles[0].nom }}</span>
+  {% else %}<form method="get" class="d-flex gap-2">
+    <select class="form-select" name="ile" onchange="this.form.submit()" aria-label="Île">
+      <option value="">Toutes les îles</option>
+      {% for i in iles %}<option value="{{ i.id }}" {{ 'selected' if ile == i.id }}>{{ i.nom }}</option>{% endfor %}
+    </select>
+  </form>{% endif %}
+</div>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+
+<div class="carte-page">
+  <aside class="carte-lateral">
+    <div class="card"><div class="card-body p-2">
+      <input class="form-control" id="recherche" type="search" placeholder="Rechercher une parcelle…" title="N° de dossier, propriétaire, commune, village" autocomplete="off" aria-label="Rechercher une parcelle">
+      <div class="carte-resultats mt-1 small" id="resultats" hidden></div>
+      <div class="row g-2 mt-1">
+        <div class="col-12"><select class="form-select form-select-sm" id="f-origine" aria-label="Type de dossier">
+          <option value="">Tous les dossiers</option><option value="nouveau">Nouveaux</option><option value="ancien">Anciens</option></select></div>
+        <div class="col-12"><select class="form-select form-select-sm" id="f-commune" aria-label="Commune"><option value="">Toutes les communes</option></select></div>
+      </div>
+    </div></div>
+
+    <div class="card"><div class="card-header bg-white fw-semibold py-2 d-flex justify-content-between align-items-center">
+      <span>Légende</span><button class="btn btn-link btn-sm p-0" id="tout-afficher" type="button">Tout afficher</button></div>
+      <div class="card-body p-2 carte-legende" id="legende">
+        {% for l in legende %}
+        <label><input type="checkbox" class="form-check-input m-0" data-statut="{{ l.code }}" checked>
+          <span class="pastille" style="border-color: {{ l.couleur }}; background: {{ l.couleur }}55"></span>
+          <span class="libelle">{{ l.label }}</span><span class="nb" data-nb="{{ l.code }}">0</span></label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="card" id="detail"><div class="card-header bg-white fw-semibold py-2">Parcelle sélectionnée</div>
+      <div class="card-body small text-muted" id="detail-corps">Cliquez sur une parcelle de la carte ou d'un résultat de recherche pour voir son détail.</div>
+    </div>
+  </aside>
+
+  <div class="carte-zone" id="zone-carte">
+    <div id="carte-generale" class="border"></div>
+    <div class="carte-mesure" id="mesure" role="status"></div>
+  </div>
+</div>
+<div class="small text-muted mt-2">Seules les parcelles dont le tracé est enregistré apparaissent. Les dossiers clôturés (divisés, fusionnés ou transmis) n'y figurent plus : seul le dossier à jour est affiché.</div>
+
+<script type="application/json" id="config-carte">{{ {'tuiles': tuiles, 'ile': ile, 'couleurs': legende}|tojson }}</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+{% if GOOGLE_CLE %}
+<script src="https://maps.googleapis.com/maps/api/js?key={{ GOOGLE_CLE }}&amp;language=fr"></script>
+<script src="https://unpkg.com/leaflet.gridlayer.googlemutant@0.14.1/dist/Leaflet.GoogleMutant.js"></script>
+{% endif %}
+<script src="{{ url_for('static', filename='js/carte_outils.js') }}"></script>
+<script src="{{ url_for('static', filename='js/carte.js') }}"></script>
+{% endblock %}

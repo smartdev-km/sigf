@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}{{ p.nom_complet }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/carte.css') }}">{% endblock %}
+{% macro m2(v) %}{{ '{:,.0f}'.format(v).replace(',', ' ') }} m²{% endmacro %}
+{% block content %}
+<nav class="small mb-2"><a href="{{ url_for('proprietaires.liste') }}" class="text-decoration-none"><i class="bi bi-arrow-left me-1"></i>Propriétaires</a></nav>
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="h3 mb-0">{{ p.nom_complet }}</h1>
+    <div class="text-muted small">{% if p.identite %}Pièce d'identité : {{ p.identite }}{% else %}Pièce d'identité non renseignée{% endif %}</div>
+  </div>
+  {% if peut_proposer and not demandes %}
+  <a class="btn btn-outline-primary" href="{{ url_for('proprietaires.modifier', proprietaire_id=p.id) }}"><i class="bi bi-pencil-square me-1"></i>Modifier (à faire valider)</a>
+  {% endif %}
+</div>
+{% if not restreint %}{% with depuis = 'profil', peut_decider = current_user.role == C.DIRECTEUR %}{% include "proprietaires/_demandes.html" %}{% endwith %}{% endif %}
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg-3"><div class="card card-body"><div class="text-muted small">Parcelles détenues</div><div class="fs-3 fw-semibold">{{ patrimoine.actuels|length }}</div></div></div>
+  <div class="col-6 col-lg-3"><div class="card card-body"><div class="text-muted small">Superficie (selon ses parts)</div><div class="fs-3 fw-semibold">{% if patrimoine.superficie_totale %}{{ m2(patrimoine.superficie_totale) }}{% else %}—{% endif %}</div>
+    {% if patrimoine.sans_superficie %}<div class="small text-muted">{{ patrimoine.sans_superficie }} parcelle{{ 's' if patrimoine.sans_superficie > 1 }} sans superficie</div>{% endif %}</div></div>
+  {% if not restreint %}
+  <div class="col-6 col-lg-3"><div class="card card-body"><div class="text-muted small">Anciens biens</div><div class="fs-3 fw-semibold">{{ patrimoine.anciens|length }}</div></div></div>
+  <div class="col-6 col-lg-3"><div class="card card-body"><div class="text-muted small">Hypothèques à son profit</div><div class="fs-3 fw-semibold">{{ patrimoine.creances|selectattr('active')|list|length }}</div></div></div>
+  {% endif %}
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header bg-white fw-semibold">Coordonnées</div><div class="card-body">
+    <dl class="row mb-0">
+      <dt class="col-sm-4 text-muted fw-normal">Nom</dt><dd class="col-sm-8">{{ p.nom_complet }}</dd>
+      <dt class="col-sm-4 text-muted fw-normal">Téléphone</dt><dd class="col-sm-8">{{ telephones|join(' · ') or '—' }}</dd>
+      <dt class="col-sm-4 text-muted fw-normal">Adresse</dt><dd class="col-sm-8">{% for a in adresses %}{{ a }}{{ '; ' if not loop.last }}{% else %}—{% endfor %}</dd>
+    </dl>
+    {% if fiches|length > 1 %}<div class="small text-muted mt-2">{{ fiches|length }} fiches de dossiers différents désignent cette personne (même pièce d'identité).</div>{% endif %}
+  </div></div></div>
+  {% if similaires %}
+  <div class="col-lg-6"><div class="card h-100 border-warning"><div class="card-header bg-white fw-semibold"><i class="bi bi-exclamation-triangle text-warning me-1"></i>Doublons possibles</div><div class="card-body">
+    <p class="small text-muted">Ces fiches ressemblent à celle-ci (même nom, ou même téléphone) mais ont une autre pièce d'identité, ou aucune. Si c'est la même personne, corrigez la pièce d'identité dans le dossier concerné : les fiches seront regroupées automatiquement.</p>
+    <ul class="mb-0">{% for s in similaires %}
+      <li><a href="{{ url_for('proprietaires.profil', proprietaire_id=s.id) }}" class="text-decoration-none">{{ s.nom_complet }}</a> <span class="small text-muted">· {{ s.identite or 'pièce non renseignée' }}{% if s.telephone %} · {{ s.telephone }}{% endif %}</span></li>
+    {% endfor %}</ul>
+  </div></div></div>
+  {% endif %}
+</div>
+
+<div class="card mb-3" id="carte-biens"><div class="card-header bg-white d-flex justify-content-between flex-wrap gap-2 align-items-center">
+  <span class="fw-semibold"><i class="bi bi-geo-alt me-1"></i>Carte des biens</span>
+  <span class="small text-muted">{{ carte.nb_actuels }} bien{{ 's' if carte.nb_actuels > 1 }} actuel{{ 's' if carte.nb_actuels > 1 }}{% if carte.nb_anciens %} · {{ carte.nb_anciens }} ancien{{ 's' if carte.nb_anciens > 1 }} bien{{ 's' if carte.nb_anciens > 1 }}{% endif %}{% if carte.sans_trace %} · {{ carte.sans_trace }} sans tracé enregistré{% endif %}</span></div>
+  {% if carte.features %}
+  <div class="card-body p-2">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+    <div class="carte-zone" id="zone-carte-biens">
+      <div id="carte-proprio" style="height: 440px;" class="border"></div>
+      <div class="carte-mesure" id="mesure-proprio" role="status"></div>
+    </div>
+    <div class="small text-muted mt-2 d-flex flex-wrap gap-3">
+      {% for l in carte.legende %}<span><span class="pastille-carte" style="--c: {{ l.couleur }}"></span> {{ l.libelle }}</span>{% endfor %}
+      <span>Cliquez sur une parcelle pour voir son détail.</span>
+    </div>
+  </div>
+  <script type="application/json" id="donnees-carte-proprio">{{ {'carte': carte, 'tuiles': tuiles}|tojson }}</script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  {% if GOOGLE_CLE %}
+  <script src="https://maps.googleapis.com/maps/api/js?key={{ GOOGLE_CLE }}&amp;language=fr"></script>
+  <script src="https://unpkg.com/leaflet.gridlayer.googlemutant@0.14.1/dist/Leaflet.GoogleMutant.js"></script>
+  {% endif %}
+  <script src="{{ url_for('static', filename='js/carte_outils.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/carte_proprietaire.js') }}"></script>
+  {% else %}
+  <div class="card-body text-muted">Aucun tracé enregistré pour les biens de cette personne{% if carte.sans_trace %} ({{ carte.sans_trace }} bien{{ 's' if carte.sans_trace > 1 }} sans tracé){% endif %} : la carte apparaîtra dès qu'un tracé sera déposé sur l'un de ses dossiers.</div>
+  {% endif %}
+</div>
+
+<div class="card mb-3"><div class="card-header bg-white fw-semibold">Parcelles détenues</div>
+  <div class="table-responsive"><table class="table align-middle mb-0">
+    <thead class="table-light"><tr><th>Dossier</th><th>Localisation</th><th>Part</th><th class="text-end">Superficie</th>{% if not restreint %}<th class="text-center">Charges</th>{% endif %}</tr></thead>
+    <tbody>
+    {% for l in patrimoine.actuels %}
+      <tr>
+        <td class="text-nowrap"><a class="fw-semibold text-decoration-none" href="{{ url_for('main.detail_dossier', dossier_id=l.dossier.id) }}">{{ l.dossier.numero }}</a></td>
+        <td class="small">{{ l.dossier.parcelle.ile.nom }} · {{ l.dossier.parcelle.commune }}{% if l.dossier.parcelle.village %} · {{ l.dossier.parcelle.village }}{% endif %}</td>
+        <td>{{ formater_part(l.part) }}</td>
+        <td class="text-end text-nowrap">{% if l.aire %}{{ m2(l.aire) }}<div class="small text-muted">{{ l.source_aire }}</div>{% else %}—{% endif %}</td>
+        {% if not restreint %}<td class="text-center">{% if l.charges %}<span class="badge text-bg-warning">{{ l.charges }} hypothèque{{ 's' if l.charges > 1 }}</span>{% else %}—{% endif %}</td>{% endif %}
+      </tr>
+    {% else %}<tr><td colspan="{{ 4 if restreint else 5 }}" class="text-center text-muted py-4">Aucune parcelle détenue actuellement.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+
+{% if patrimoine.anciens and not restreint %}
+<div class="card mb-3"><div class="card-header bg-white fw-semibold">Anciens biens</div>
+  <div class="table-responsive"><table class="table align-middle mb-0">
+    <thead class="table-light"><tr><th>Dossier</th><th>Part détenue</th><th>Fin de propriété</th><th>Dossier suivant</th></tr></thead>
+    <tbody>
+    {% for l in patrimoine.anciens %}
+      <tr>
+        <td class="text-nowrap"><a class="fw-semibold text-decoration-none" href="{{ url_for('main.detail_dossier', dossier_id=l.dossier.id) }}">{{ l.dossier.numero }}</a></td>
+        <td>{{ formater_part(l.part) }}</td>
+        <td>{{ l.fin }}{% if l.cloture_le %}<div class="small text-muted">{{ l.cloture_le|dt }}</div>{% endif %}</td>
+        <td>{% for s in l.suite %}<a class="text-decoration-none" href="{{ url_for('main.detail_dossier', dossier_id=s.id) }}">{{ s.numero }}</a>{{ ', ' if not loop.last }}{% else %}—{% endfor %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endif %}
+
+{% if patrimoine.creances and not restreint %}
+<div class="card mb-3"><div class="card-header bg-white fw-semibold">Hypothèques à son profit</div>
+  <div class="table-responsive"><table class="table align-middle mb-0">
+    <thead class="table-light"><tr><th>Dossier</th><th>Débiteur</th><th class="text-end">Montant</th><th>État</th></tr></thead>
+    <tbody>
+    {% for c in patrimoine.creances %}
+      <tr>
+        <td class="text-nowrap"><a class="fw-semibold text-decoration-none" href="{{ url_for('main.detail_dossier', dossier_id=c.dossier.id) }}">{{ c.dossier.numero }}</a></td>
+        <td>{{ c.dossier.proprietaire_label }}</td>
+        <td class="text-end text-nowrap">{% if c.mutation.montant %}{{ '{:,}'.format(c.mutation.montant).replace(',', ' ') }} KMF{% else %}—{% endif %}</td>
+        <td>{% if c.active %}<span class="badge text-bg-warning">En vigueur</span>{% else %}<span class="badge text-bg-secondary">Levée ou dossier clôturé</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endif %}
+
+{% if not restreint %}
+<div class="card mb-3"><div class="card-header bg-white fw-semibold">Parcours</div>
+  <ul class="list-group list-group-flush">
+  {% for e in patrimoine.parcours %}
+    <li class="list-group-item">
+      <div class="d-flex justify-content-between flex-wrap gap-1">
+        <div><strong>{{ e.nature }}</strong> {{ e.detail }}</div>
+        <div class="text-muted small">{{ e.date.strftime('%d/%m/%Y') }}</div>
+      </div>
+      <div class="small text-muted">
+        Dossier <a href="{{ url_for('main.detail_dossier', dossier_id=e.dossier.id) }}" class="text-decoration-none">{{ e.dossier.numero }}</a>
+        {% if e.suite %} → <a href="{{ url_for('main.detail_dossier', dossier_id=e.suite.id) }}" class="text-decoration-none">{{ e.suite.numero }}</a>{% endif %}
+        {% if e.reference %} · {{ e.reference }}{% endif %}
+        {% if e.montant %} · {{ '{:,}'.format(e.montant).replace(',', ' ') }} KMF{% endif %}
+      </div>
+    </li>
+  {% else %}
+    <li class="list-group-item text-muted">Aucune mutation enregistrée pour cette personne.</li>
+  {% endfor %}
+  </ul>
+</div>
+{% endif %}
+{% endblock %}

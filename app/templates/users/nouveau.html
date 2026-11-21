@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Nouveau compte{% endblock %}
+{% block content %}
+<div class="row"><div class="col-md-8 col-lg-5">
+  <h1 class="h3 mb-3">Nouveau compte</h1>
+  <div class="card"><div class="card-body">
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% with peut_role = roles|length > 1, peut_ile = true %}{% include "users/_champs_compte.html" %}{% endwith %}
+      <div class="mb-3"><label class="form-label">Mot de passe provisoire *</label>
+        <input class="form-control" type="text" name="password" minlength="{{ minimum }}" autocomplete="off" required>
+        <div class="form-text">Au moins {{ minimum }} caractères. L'utilisateur devra le changer à sa première connexion.</div></div>
+      <button class="btn btn-primary">Créer le compte</button>
+      <a class="btn btn-link" href="{{ url_for('users.liste') }}">Annuler</a>
+    </form>
+  </div></div>
+</div></div>
+{% endblock %}

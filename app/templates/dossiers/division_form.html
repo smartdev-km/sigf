@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Division · {{ d.numero }}{% endblock %}
+{% block content %}
+<a class="small text-decoration-none" href="{{ url_for('main.detail_dossier', dossier_id=d.id) }}#tracabilite">← {{ d.numero }}</a>
+<h1 class="h3 mb-1">Division de la parcelle</h1>
+<p class="text-muted">La parcelle mère sera <strong>clôturée</strong> (définitivement) et chaque parcelle fille deviendra un <strong>nouveau dossier</strong> qui suivra le circuit complet (plan croquis, RTC, RTS, certificat). Le Directeur doit valider.</p>
+
+<div class="card mb-3"><div class="card-body py-2">
+  <span class="text-muted">Propriétaire(s) actuel(s) :</span>
+  {% for p, part in et.parts %}<strong>{{ p.nom_complet }}</strong> ({{ formater_part(part) }}){{ ' ; ' if not loop.last }}{% endfor %}
+  {% if d.geometrie_courante %}<span class="ms-3 text-muted">Tracé : {{ '{:,.0f}'.format(d.geometrie_courante.superficie_m2).replace(',', ' ') }} m²</span>{% endif %}
+</div></div>
+
+<form method="post" enctype="multipart/form-data">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="card mb-3"><div class="card-header bg-white fw-semibold">Acte de partage</div><div class="card-body">
+    <div class="row g-2">
+      <div class="col-md-3"><label class="form-label">Date de l'acte *</label>
+        <input class="form-control" type="date" name="date_acte" value="{{ f.get('date_acte','') }}" max="{{ today }}" required></div>
+      <div class="col-md-9"><label class="form-label">Référence de l'acte *</label>
+        <input class="form-control" name="reference_acte" maxlength="200" value="{{ f.get('reference_acte','') }}" placeholder="Plan de division, jugement, n° d'acte…" required></div>
+    </div>
+  </div></div>
+
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h2 class="h5 mb-0">Parcelles filles</h2>
+    <button type="button" id="ajouter-enfant" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg me-1"></i>Ajouter une parcelle</button>
+  </div>
+  <div class="alert alert-light border small">
+    <strong>Répartition des propriétaires.</strong> Si vous ne remplissez aucune part, <u>chaque parcelle fille garde les propriétaires de la mère</u>, aux mêmes parts
+    (vous pourrez ensuite vendre une parcelle fille). Pour un <em>partage entre copropriétaires</em>, indiquez pour chaque parcelle les parts de ses propriétaires
+    (ex. <code>1</code>, <code>1/2</code>) : le total de chaque parcelle doit faire 1 et chaque propriétaire doit recevoir au moins une parcelle.
+    Le tracé (.kmz/.kml) est facultatif ; s'il est fourni, il doit rester dans la parcelle mère sans chevaucher les autres filles.
+  </div>
+  <div id="enfants"></div>
+
+  <div class="mb-3">
+    <label class="form-label">Notes</label>
+    <textarea class="form-control" name="notes" rows="2" maxlength="4000">{{ f.get('notes','') }}</textarea>
+  </div>
+  <button class="btn btn-primary">Soumettre au Directeur</button>
+  <a class="btn btn-link" href="{{ url_for('main.detail_dossier', dossier_id=d.id) }}#tracabilite">Annuler</a>
+</form>
+
+<script type="application/json" id="cfg-division">{{ cfg|tojson }}</script>
+<script>
+(function () {
+  var cfg = JSON.parse(document.getElementById('cfg-division').textContent);
+  var conteneur = document.getElementById('enfants');
+  function el(tag, attrs, texte) {
+    var e = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) { e.setAttribute(k, attrs[k]); });
+    if (texte) e.textContent = texte;
+    return e;
+  }
+  function champ(classe, etiquette, input) {
+    var col = el('div', {'class': classe});
+    col.appendChild(el('label', {'class': 'form-label small mb-0'}, etiquette));
+    col.appendChild(input);
+    return col;
+  }
+  function ajouter(init) {
+    init = init || {};
+    var carte = el('div', {'class': 'card mb-3 enfant'});
+    var tete = el('div', {'class': 'card-header bg-white d-flex justify-content-between'});
+    tete.appendChild(el('span', {'class': 'fw-semibold titre-enfant'}));
+    var retirer = el('button', {'type': 'button', 'class': 'btn btn-sm btn-outline-danger retirer-enfant', 'title': 'Retirer'});
+    retirer.appendChild(el('i', {'class': 'bi bi-x-lg'}));
+    tete.appendChild(retirer);
+    carte.appendChild(tete);
+    var corps = el('div', {'class': 'card-body'});
+    var ligne = el('div', {'class': 'row g-2 mb-2'});
+    var lib = el('input', {'class': 'form-control form-control-sm', 'name': 'e_libelle', 'maxlength': '80', 'required': 'required', 'placeholder': 'Lot 1'});
+    lib.value = init.libelle || '';
+    var sup = el('input', {'class': 'form-control form-control-sm', 'name': 'e_superficie', 'inputmode': 'decimal', 'placeholder': 'facultatif'});
+    sup.value = init.superficie || '';
+    var fic = el('input', {'class': 'form-control form-control-sm', 'type': 'file', 'name': 'e_fichier', 'accept': '.kmz,.kml'});
+    ligne.appendChild(champ('col-md-3', 'Nom de la parcelle *', lib));
+    ligne.appendChild(champ('col-md-3', 'Superficie déclarée (m²)', sup));
+    ligne.appendChild(champ('col-md-6', 'Tracé (.kmz ou .kml)', fic));
+    corps.appendChild(ligne);
+    var alloc = el('div', {'class': 'row g-2'});
+    cfg.proprietaires.forEach(function (p) {
+      var inp = el('input', {'class': 'form-control form-control-sm', 'name': 'e_alloc_' + p.id, 'placeholder': 'part (ex. 1, 1/2)'});
+      inp.value = (init.alloc && init.alloc[String(p.id)]) || '';
+      alloc.appendChild(champ('col-md-3', p.nom + ' (détient ' + p.part + ')', inp));
+    });
+    corps.appendChild(alloc);
+    carte.appendChild(corps);
+    conteneur.appendChild(carte);
+    renumeroter();
+  }
+  function renumeroter() {
+    var blocs = conteneur.querySelectorAll('.enfant');
+    blocs.forEach(function (b, i) {
+      b.querySelector('.titre-enfant').textContent = 'Parcelle fille ' + (i + 1);
+      b.querySelector('.retirer-enfant').hidden = blocs.length <= 2;
+    });
+  }
+  document.getElementById('ajouter-enfant').addEventListener('click', function () { ajouter(); });
+  conteneur.addEventListener('click', function (e) {
+    var b = e.target.closest('.retirer-enfant');
+    if (b) { b.closest('.enfant').remove(); renumeroter(); }
+  });
+  (cfg.enfants.length >= 2 ? cfg.enfants : [{}, {}]).forEach(ajouter);
+})();
+</script>
+{% endblock %}

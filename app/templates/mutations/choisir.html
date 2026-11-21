@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}{{ titre }} · choisir le dossier{% endblock %}
+{% block content %}
+<a class="small text-decoration-none" href="{{ url_for('mutations.liste') }}">← Mutations</a>
+<h1 class="h3 mb-1">{{ titre }} : choisissez le dossier</h1>
+<p class="text-muted">Seuls les dossiers <strong>certifiés</strong> ou <strong>anciens (numérisés)</strong> peuvent faire l'objet d'une mutation.
+  {% if type_ == 'mainlevee' %}Pour une mainlevée, seuls les dossiers avec une hypothèque active sont proposés.{% endif %}
+  {% if type_ == 'annulation' %}Seuls les dossiers qui ont une mutation à annuler sont proposés.{% endif %}</p>
+
+<form class="card card-body mb-3" method="get">
+  <input type="hidden" name="type" value="{{ type_ }}">
+  <div class="input-group">
+    <input class="form-control" name="q" value="{{ q }}" placeholder="N° de dossier, nom du propriétaire, commune, n° du dossier papier…" autofocus>
+    <button class="btn btn-primary"><i class="bi bi-search me-1"></i>Rechercher</button>
+  </div>
+</form>
+
+<div class="card"><div class="table-responsive">
+  <table class="table table-hover align-middle mb-0">
+    <thead class="table-light"><tr><th>Dossier</th><th>Propriétaire(s) actuel(s)</th><th>Localisation</th><th>Charges</th><th></th></tr></thead>
+    <tbody>
+    {% for l in lignes %}{% set d = l.d %}
+      <tr>
+        <td class="fw-semibold">{{ d.numero }}{% if d.statut == C.ARCHIVE %}<div class="small text-muted fw-normal">ancien dossier{% if d.reference_archive %} · {{ d.reference_archive }}{% endif %}</div>{% endif %}</td>
+        <td>{{ d.proprietaire_label }}</td>
+        <td class="small">{{ d.parcelle.ile.nom }}<br>{{ d.parcelle.commune }}{% if d.parcelle.village %} · {{ d.parcelle.village }}{% endif %}</td>
+        <td>{% if l.charges %}<span class="badge text-bg-warning">{{ l.charges }} hypothèque{{ 's' if l.charges > 1 }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+        <td class="text-end">
+          {% if l.raison %}<span class="small text-muted" title="{{ l.raison }}"><i class="bi bi-slash-circle me-1"></i>{{ l.raison }}</span>
+          {% else %}<a class="btn btn-sm btn-primary" href="{{ l.lien }}">Choisir</a>{% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="5" class="text-center text-muted py-4">Aucun dossier ne correspond.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div></div>
+<div class="small text-muted mt-2">20 dossiers au maximum sont affichés : précisez la recherche si le vôtre n'apparaît pas.</div>
+{% endblock %}

@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Fusion · {{ d.numero }}{% endblock %}
+{% block content %}
+<a class="small text-decoration-none" href="{{ url_for('main.detail_dossier', dossier_id=d.id) }}#tracabilite">← {{ d.numero }}</a>
+<h1 class="h3 mb-1">Fusion de parcelles</h1>
+<p class="text-muted">Les parcelles fusionnées seront <strong>clôturées</strong> (définitivement) et remplacées par <strong>un nouveau dossier</strong> qui suivra le circuit complet. Le Directeur doit valider.</p>
+
+<div class="alert alert-light border small">
+  Conditions : mêmes propriétaires <u>aux mêmes parts</u> sur toutes les parcelles, aucune hypothèque active, même île, et parcelles contiguës si leurs tracés existent.
+  Sinon, régularisez d'abord par une vente, un partage ou une mainlevée.
+</div>
+
+<div class="card mb-3"><div class="card-body py-2">
+  <span class="text-muted">Dossier de départ :</span> <strong>{{ d.numero }}</strong> ·
+  {% for p, part in et.parts %}<strong>{{ p.nom_complet }}</strong> ({{ formater_part(part) }}){{ ' ; ' if not loop.last }}{% endfor %}
+</div></div>
+
+<form method="post" enctype="multipart/form-data">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="card mb-3"><div class="card-header bg-white fw-semibold">Dossiers à fusionner avec {{ d.numero }}</div><div class="card-body">
+    <div id="sources" class="d-grid gap-2">
+      {% for n in autres %}
+      <div class="input-group ligne-source">
+        <input class="form-control" name="source_numero" value="{{ n }}" placeholder="SIGF-2026-00012" autocomplete="off">
+        <button type="button" class="btn btn-outline-danger retirer-source" title="Retirer"><i class="bi bi-x-lg"></i></button>
+      </div>
+      {% endfor %}
+    </div>
+    <button type="button" id="ajouter-source" class="btn btn-sm btn-outline-primary mt-2"><i class="bi bi-plus-lg me-1"></i>Ajouter un dossier</button>
+  </div></div>
+
+  <div class="card mb-3"><div class="card-header bg-white fw-semibold">Acte de fusion</div><div class="card-body">
+    <div class="row g-2">
+      <div class="col-md-3"><label class="form-label">Date de l'acte *</label>
+        <input class="form-control" type="date" name="date_acte" value="{{ f.get('date_acte','') }}" max="{{ today }}" required></div>
+      <div class="col-md-9"><label class="form-label">Référence de l'acte *</label>
+        <input class="form-control" name="reference_acte" maxlength="200" value="{{ f.get('reference_acte','') }}" required></div>
+      <div class="col-12"><label class="form-label">Tracé de la parcelle fusionnée (.kmz ou .kml, facultatif)</label>
+        <input class="form-control" type="file" name="fichier_trace" accept=".kmz,.kml">
+        <div class="form-text">Sans fichier, si toutes les parcelles ont un tracé, l'union des tracés est calculée automatiquement.</div></div>
+      <div class="col-12"><label class="form-label">Notes</label>
+        <textarea class="form-control" name="notes" rows="2" maxlength="4000">{{ f.get('notes','') }}</textarea></div>
+    </div>
+  </div></div>
+  <button class="btn btn-primary">Soumettre au Directeur</button>
+  <a class="btn btn-link" href="{{ url_for('main.detail_dossier', dossier_id=d.id) }}#tracabilite">Annuler</a>
+</form>
+<script>
+(function () {
+  var conteneur = document.getElementById('sources');
+  function majBoutons() {
+    var lignes = conteneur.querySelectorAll('.ligne-source');
+    lignes.forEach(function (l) { l.querySelector('.retirer-source').hidden = lignes.length <= 1; });
+  }
+  document.getElementById('ajouter-source').addEventListener('click', function () {
+    var l = conteneur.firstElementChild.cloneNode(true);
+    l.querySelector('input').value = '';
+    conteneur.appendChild(l);
+    majBoutons();
+    l.querySelector('input').focus();
+  });
+  conteneur.addEventListener('click', function (e) {
+    var b = e.target.closest('.retirer-source');
+    if (b) { b.closest('.ligne-source').remove(); majBoutons(); }
+  });
+  majBoutons();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Corriger {{ d.numero }}{% endblock %}
+{% block content %}
+{% macro val(nom, defaut) %}{{ v.get(nom) if v.get(nom) is not none else (defaut if defaut is not none else '') }}{% endmacro %}
+
+<a class="small text-decoration-none" href="{{ url_for('main.detail_dossier', dossier_id=d.id) }}">← {{ d.numero }}</a>
+<h1 class="h3 mb-1">Corriger le dossier</h1>
+<p class="text-muted mb-3">{{ d.numero }} · {{ d.proprietaire_label }}</p>
+
+{% if mode == 'direct' %}
+<div class="alert alert-info"><i class="bi bi-pencil-square me-1"></i><strong>Ce dossier est en cours de traitement :</strong> la correction s'applique <strong>immédiatement</strong>. Elle est enregistrée dans l'historique, avec votre nom, le motif et les valeurs avant et après.</div>
+{% else %}
+<div class="alert alert-warning"><i class="bi bi-hourglass-split me-1"></i><strong>Ce dossier est certifié :</strong> votre correction sera <strong>soumise au Directeur</strong>. Les données ne changent qu'à sa validation, et les documents déjà imprimés seront alors signalés « non à jour ».</div>
+{% endif %}
+
+<form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <div class="card mb-3"><div class="card-header bg-white fw-semibold">Parcelle</div><div class="card-body">
+    <div class="row g-2">
+      <div class="col-md-4"><label class="form-label">Île</label>
+        <select class="form-select" name="p_ile_id">
+          {% for i in iles %}<option value="{{ i.id }}" {{ 'selected' if (v.get('p_ile_id') or actuel.ile_id)|string == i.id|string }}>{{ i.nom }}</option>{% endfor %}
+        </select></div>
+      <div class="col-md-4"><label class="form-label">Commune *</label><input class="form-control" name="p_commune" maxlength="120" value="{{ val('p_commune', actuel.commune) }}" required></div>
+      <div class="col-md-4"><label class="form-label">Village / quartier</label><input class="form-control" name="p_village" maxlength="120" value="{{ val('p_village', actuel.village) }}"></div>
+      <div class="col-md-4"><label class="form-label">Référence de la parcelle</label><input class="form-control" name="p_reference" maxlength="80" value="{{ val('p_reference', actuel.reference) }}"></div>
+      <div class="col-md-4"><label class="form-label">Superficie déclarée (m²)</label><input class="form-control" name="p_superficie_m2" inputmode="decimal" value="{{ val('p_superficie_m2', ('%g' % actuel.superficie_m2) if actuel.superficie_m2 else '') }}"></div>
+      <div class="col-md-4"><label class="form-label">Type de titre</label>
+        <select class="form-select" name="p_type_titre"><option value="">—</option>
+          {% for t in types_titre %}<option {{ 'selected' if (v.get('p_type_titre') if v.get('p_type_titre') is not none else actuel.type_titre) == t }}>{{ t }}</option>{% endfor %}
+        </select></div>
+    </div>
+    <div class="form-text mt-2">Le numéro du dossier, les numéros RTC/RTS et le statut ne se corrigent pas ici. Les parts et les propriétaires se changent par une <a href="{{ url_for('mutations.liste') }}">mutation</a>.</div>
+  </div></div>
+
+  {% for p, part in et.parts %}
+  <div class="card mb-3"><div class="card-header bg-white fw-semibold">
+    {{ 'Propriétaire' if et.parts|length == 1 else 'Propriétaire ' ~ loop.index }} · {{ p.nom_complet }}{% if et.parts|length > 1 %} <span class="text-muted fw-normal">({{ formater_part(part) }})</span>{% endif %}
+  </div><div class="card-body">
+    {% if partages[p.id] %}
+    <div class="alert alert-warning py-2 small">
+      <i class="bi bi-exclamation-triangle me-1"></i>Cette personne figure <strong>aussi dans {{ partages[p.id]|length }} autre{{ 's' if partages[p.id]|length > 1 }} dossier{{ 's' if partages[p.id]|length > 1 }}</strong>
+      ({% for x in partages[p.id] %}<a href="{{ url_for('main.detail_dossier', dossier_id=x.id) }}">{{ x.numero }}</a>{% if x.statut == 'cloture' %} (clôturé){% endif %}{{ ', ' if not loop.last }}{% endfor %}) :
+      c'est la même personne, donc la correction s'y applique aussi.
+    </div>
+    {% endif %}
+    <div class="row g-2">
+      {% set cle = 'o' ~ p.id ~ '_' %}
+      <div class="col-md-4"><label class="form-label">Nom *</label><input class="form-control" name="{{ cle }}nom" maxlength="120" value="{{ val(cle ~ 'nom', p.nom) }}" required></div>
+      <div class="col-md-4"><label class="form-label">Prénom</label><input class="form-control" name="{{ cle }}prenom" maxlength="120" value="{{ val(cle ~ 'prenom', p.prenom) }}"></div>
+      <div class="col-md-4"><label class="form-label">N° pièce d'identité</label><input class="form-control" name="{{ cle }}identite" maxlength="80" value="{{ val(cle ~ 'identite', p.identite) }}"></div>
+      <div class="col-md-4"><label class="form-label">Téléphone</label><input class="form-control" name="{{ cle }}telephone" maxlength="40" value="{{ val(cle ~ 'telephone', p.telephone) }}"></div>
+      <div class="col-md-8"><label class="form-label">Adresse</label><input class="form-control" name="{{ cle }}adresse" maxlength="255" value="{{ val(cle ~ 'adresse', p.adresse) }}"></div>
+    </div>
+  </div></div>
+  {% endfor %}
+
+  <div class="card mb-3"><div class="card-header bg-white fw-semibold">Motif de la correction</div><div class="card-body">
+    <textarea class="form-control" name="motif" rows="2" maxlength="500" required placeholder="Ex. : faute de frappe relevée sur la pièce d'identité">{{ v.get('motif', '') }}</textarea>
+    <div class="form-text">Obligatoire. Il est conservé avec la correction.</div>
+  </div></div>
+
+  <button class="btn btn-primary">{{ 'Appliquer la correction' if mode == 'direct' else 'Soumettre au Directeur' }}</button>
+  <a class="btn btn-link" href="{{ url_for('main.detail_dossier', dossier_id=d.id) }}">Annuler</a>
+</form>
+{% endblock %}

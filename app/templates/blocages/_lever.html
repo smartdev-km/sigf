@@ -1,0 +1,12 @@
+{# formulaire de levée : `b`, `depuis` #}
+<details class="mt-2">
+  <summary class="btn btn-sm btn-outline-success">Lever ce blocage…</summary>
+  <form method="post" enctype="multipart/form-data" action="{{ url_for('blocages.lever_route', blocage_id=b.id) }}" class="mt-2 p-2 border rounded bg-light">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="depuis" value="{{ depuis }}">
+    <label class="form-label small mb-1">Preuve *</label>
+    <textarea class="form-control form-control-sm" name="motif" rows="2" maxlength="2000" required placeholder="Décision, jugement, pièce fournie, vérification faite… (au moins 10 caractères)"></textarea>
+    <label class="form-label small mb-1 mt-2">Fichier de preuve (facultatif)</label>
+    <input class="form-control form-control-sm" type="file" name="fichier" accept=".pdf,.jpg,.jpeg,.png,.tif,.tiff">
+    <button class="btn btn-success btn-sm mt-2"><i class="bi bi-unlock me-1"></i>Lever le blocage</button>
+  </form>
+</details>

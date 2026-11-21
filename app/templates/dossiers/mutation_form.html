@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+{% block title %}Nouvelle mutation · {{ d.numero }}{% endblock %}
+{% block content %}
+<a class="small text-decoration-none" href="{{ url_for('main.detail_dossier', dossier_id=d.id) }}#tracabilite">← {{ d.numero }}</a>
+<h1 class="h3 mb-1">Nouvelle mutation</h1>
+<p class="text-muted">Elle sera examinée par le Directeur. Une fois validée, elle ne pourra plus être modifiée : seule une annulation la corrige.</p>
+
+<div class="card mb-3"><div class="card-body py-2">
+  <span class="text-muted">Propriétaire(s) actuel(s) :</span>
+  {% for p, part in et.parts %}<strong>{{ p.nom_complet }}</strong> ({{ formater_part(part) }}{% if aire %} = {{ fmt_m2(aire * part) }}{% endif %}){{ ' ; ' if not loop.last }}{% endfor %}
+  <div class="mt-1"><span class="text-muted">Superficie de la parcelle :</span>
+    {% if aire %}<strong id="superficie-totale" data-m2="{{ aire }}">{{ fmt_m2(aire) }}</strong> <span class="text-muted small">({{ 'mesurée sur le tracé' if source_aire == 'tracé' else 'déclarée dans le dossier' }})</span>
+    {% else %}<span class="text-warning">non renseignée : les superficies en m² ne peuvent pas être calculées. Renseignez la superficie ou déposez le tracé du dossier.</span>{% endif %}</div>
+</div></div>
+
+<form method="post" id="form-mutation">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <div class="card mb-3"><div class="card-header bg-white fw-semibold">Acte</div><div class="card-body">
+    <div class="row g-2">
+      <div class="col-md-4"><label class="form-label">Type de mutation *</label>
+        <select class="form-select" name="type" id="type-mutation" required>
+          <option value="">Choisir…</option>
+          {% for k, v in types.items() %}<option value="{{ k }}" {{ 'selected' if f.get('type') == k }}>{{ v }}</option>{% endfor %}
+        </select></div>
+      <div class="col-md-3"><label class="form-label">Date de l'acte *</label>
+        <input class="form-control" type="date" name="date_acte" value="{{ f.get('date_acte','') }}" max="{{ today }}" required></div>
+      <div class="col-md-5" data-types="transferts hypotheque mainlevee"><label class="form-label">Référence de l'acte *</label>
+        <input class="form-control" name="reference_acte" maxlength="200" value="{{ f.get('reference_acte','') }}" placeholder="Notaire, jugement, n° d'acte…"></div>
+    </div>
+  </div></div>
+
+  {# ---- transferts ---- #}
+  <div class="card mb-3" data-types="transferts">
+    <div class="card-header bg-white fw-semibold">Cédants : qui cède, et quelle part ?</div>
+    <div class="card-body">
+      <div class="small mb-2"><strong>Superficie totale de la parcelle : {% if aire %}{{ fmt_m2(aire) }}{% else %}non renseignée{% endif %}</strong></div>
+      <div class="small text-muted mb-2">Laissez vide pour ceux qui ne cèdent rien. Parts acceptées : <code>1</code> (parcelle entière), <code>1/2</code>, <code>25%</code> ou <code>tout</code> (toute sa part). La superficie correspondante en m² s'affiche à côté.</div>
+      {% for p, part in et.parts %}
+      <div class="row g-2 align-items-center mb-1">
+        <div class="col-md-5"><label class="form-label mb-0" for="cede_{{ p.id }}">{{ p.nom_complet }} <span class="text-muted">(détient {{ formater_part(part) }}{% if aire %} = {{ fmt_m2(aire * part) }}{% endif %})</span></label></div>
+        <div class="col-md-3"><input class="form-control form-control-sm champ-cede" id="cede_{{ p.id }}" name="cede_{{ p.id }}" value="{{ f.get('cede_' ~ p.id, '') }}" placeholder="Part cédée" autocomplete="off" data-detient="{{ part.numerator }}/{{ part.denominator }}"></div>
+        <div class="col-md-4 small fw-semibold text-primary sortie-m2" data-pour="cede_{{ p.id }}" aria-live="polite"></div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="card mb-3" data-types="transferts">
+    <div class="card-header bg-white fw-semibold">Bénéficiaires : qui reçoit, et quelle part ?</div>
+    <div class="card-body">
+      <div class="small text-muted mb-2">{% if aire %}Indiquez la <strong>superficie reçue par chacun, en m²</strong> : le total reçu doit être égal au total cédé (superficie de la parcelle : {{ fmt_m2(aire) }}).{% else %}Le total des parts reçues doit être égal au total des parts cédées.{% endif %}</div>
+      <div id="lignes-beneficiaires" class="d-grid gap-2"></div>
+      <div id="bilan-parts" class="small mt-2" aria-live="polite"></div>
+      <button type="button" id="ajouter-beneficiaire" class="btn btn-sm btn-outline-primary mt-2"><i class="bi bi-plus-lg me-1"></i>Ajouter un bénéficiaire</button>
+      <div data-types="vente">
+        <hr>
+        <div class="col-md-4"><label class="form-label">Prix de vente (KMF)</label>
+          <input class="form-control" name="montant" inputmode="numeric" value="{{ f.get('montant','') }}"></div>
+      </div>
+    </div>
+  </div>
+  <template id="modele-beneficiaire">
+    <div class="row g-2 align-items-end ligne-beneficiaire border rounded p-2">
+      <div class="col-md-3"><label class="form-label small mb-0">Personne déjà connue du dossier</label>
+        <select class="form-select form-select-sm" name="b_existant">
+          <option value="">— Nouvelle personne —</option>
+          {% for pid, p in et.connus.items() %}<option value="{{ pid }}">{{ p.nom_complet }}</option>{% endfor %}
+        </select></div>
+      <div class="col-md-2"><label class="form-label small mb-0">Nom</label><input class="form-control form-control-sm" name="b_nom"></div>
+      <div class="col-md-{{ 1 if aire else 2 }}"><label class="form-label small mb-0">Prénom</label><input class="form-control form-control-sm" name="b_prenom"></div>
+      <div class="col-md-2"><label class="form-label small mb-0">N° pièce d'identité</label><input class="form-control form-control-sm" name="b_identite"></div>
+      <div class="col-md-1"><label class="form-label small mb-0">Téléphone</label><input class="form-control form-control-sm" name="b_telephone"></div>
+      {% if aire %}
+      <div class="col-md-2"><label class="form-label small mb-0">Superficie reçue (m²) *</label><input class="form-control form-control-sm champ-recu" name="b_m2" inputmode="decimal" placeholder="ex. 225,25" autocomplete="off"></div>
+      {% else %}
+      <div class="col-md-1"><label class="form-label small mb-0">Part *</label><input class="form-control form-control-sm champ-recu" name="b_part" placeholder="1/2" autocomplete="off"></div>
+      {% endif %}
+      <div class="col-md-1"><button type="button" class="btn btn-sm btn-outline-danger w-100 retirer-beneficiaire" title="Retirer"><i class="bi bi-x-lg"></i></button></div>
+      <div class="col-12 d-flex flex-wrap gap-2 align-items-center small"><span class="fw-semibold text-primary sortie-recu" aria-live="polite"></span>{% if aire %}<button type="button" class="btn btn-link btn-sm p-0 btn-solde">Attribuer le solde</button>{% endif %}</div>
+    </div>
+  </template>
+
+  {# ---- hypothèque ---- #}
+  <div class="card mb-3" data-types="hypotheque"><div class="card-header bg-white fw-semibold">Hypothèque</div><div class="card-body">
+    <div class="row g-2">
+      <div class="col-md-5"><label class="form-label">Créancier (banque, particulier…) *</label><input class="form-control" name="creancier_nom" maxlength="120" value="{{ f.get('creancier_nom','') }}"></div>
+      <div class="col-md-3"><label class="form-label">Identifiant du créancier</label><input class="form-control" name="creancier_identite" maxlength="80" value="{{ f.get('creancier_identite','') }}"></div>
+      <div class="col-md-4"><label class="form-label">Montant garanti (KMF) *</label><input class="form-control" name="montant" inputmode="numeric"></div>
+    </div>
+  </div></div>
+
+  {# ---- mainlevée ---- #}
+  <div class="card mb-3" data-types="mainlevee"><div class="card-header bg-white fw-semibold">Hypothèque à lever</div><div class="card-body">
+    {% if et.charges %}
+    <select class="form-select" name="lie_a_id">
+      {% for c in et.charges %}<option value="{{ c.id }}">Hypothèque du {{ c.date_acte.strftime('%d/%m/%Y') }}{% if c.montant %} · {{ '{:,}'.format(c.montant).replace(',', ' ') }} KMF{% endif %}{% for p in c.parties %}{% if p.role == 'creancier' %} · {{ p.proprietaire.nom_complet }}{% endif %}{% endfor %}</option>{% endfor %}
+    </select>
+    {% else %}<div class="text-muted">Aucune hypothèque active sur ce dossier.</div>{% endif %}
+  </div></div>
+
+  {# ---- annulation ---- #}
+  <div class="card mb-3 border-warning" data-types="annulation"><div class="card-header bg-white fw-semibold">Annulation</div><div class="card-body">
+    {% if et.derniere %}
+    Cette mutation annulera la <strong>dernière mutation active</strong> :
+    {{ types[et.derniere.type] }} n° {{ et.derniere.seq }} du {{ et.derniere.date_acte.strftime('%d/%m/%Y') }}.
+    <div class="small text-muted">Seule la dernière mutation peut être annulée, pour que l'historique reste cohérent. Indiquez le motif dans les notes ci-dessous.</div>
+    {% else %}<div class="text-muted">Aucune mutation à annuler.</div>{% endif %}
+  </div></div>
+
+  <div class="mb-3">
+    <label class="form-label">Notes <span class="text-muted small" data-types="annulation rectification">(obligatoires pour une annulation ou une rectification)</span></label>
+    <textarea class="form-control" name="notes" rows="3" maxlength="4000">{{ f.get('notes','') }}</textarea>
+  </div>
+
+  <div class="alert alert-light border small"><i class="bi bi-file-earmark-pdf me-1"></i>Pas de justificatif à joindre : lorsque la mutation sera validée, le système générera lui-même l'acte correspondant (vente, donation, héritage, expropriation, hypothèque, mainlevée), prêt à imprimer.</div>
+
+  <button class="btn btn-primary">Soumettre au Directeur</button>
+  <a class="btn btn-link" href="{{ url_for('main.detail_dossier', dossier_id=d.id) }}#tracabilite">Annuler</a>
+</form>
+
+<script>
+(function () {
+  var groupes = {
+    transferts: {{ transferts|tojson }}, vente: ['vente'], hypotheque: ['hypotheque'], mainlevee: ['mainlevee'],
+    annulation: ['annulation'], rectification: ['rectification']
+  };
+  var select = document.getElementById('type-mutation');
+  function afficher() {
+    var type = select.value;
+    document.querySelectorAll('[data-types]').forEach(function (bloc) {
+      var visible = bloc.getAttribute('data-types').split(' ').some(function (g) {
+        return groupes[g] && groupes[g].indexOf(type) !== -1;
+      });
+      bloc.hidden = !visible;
+      bloc.querySelectorAll('input, select').forEach(function (c) { c.disabled = !visible; });
+    });
+  }
+  select.addEventListener('change', afficher);
+
+  var conteneur = document.getElementById('lignes-beneficiaires');
+  var modele = document.getElementById('modele-beneficiaire');
+  function ajouter() { conteneur.appendChild(modele.content.cloneNode(true)); afficher(); }
+  document.getElementById('ajouter-beneficiaire').addEventListener('click', ajouter);
+  conteneur.addEventListener('click', function (e) {
+    var b = e.target.closest('.retirer-beneficiaire');
+    if (b) b.closest('.ligne-beneficiaire').remove();
+  });
+  ajouter();
+  afficher();
+
+  // ---- superficies en m² : la part saisie (tout, 1/2, 25 %, 0,5…) est convertie en m² de la parcelle, en direct ----
+  var S = parseFloat((document.getElementById('superficie-totale') || {}).getAttribute ? document.getElementById('superficie-totale').getAttribute('data-m2') : '');
+  function pgcd(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) { var t = a % b; a = b; b = t; } return a || 1; }
+  function frac(n, d) { var g = pgcd(n, d); return [n / g, d / g]; }
+  function decimal(txt) {                              // « 12,5 » -> fraction exacte
+    var morceaux = txt.split('.'), dec = morceaux[1] || '';
+    return frac(parseInt(morceaux[0] + dec, 10), Math.pow(10, dec.length));
+  }
+  function lirePart(brut, detenue) {                   // null : vide ; NaN : invalide ; sinon [numérateur, dénominateur]
+    brut = (brut || '').trim().toLowerCase().replace(/\s/g, '').replace(',', '.');
+    if (!brut) return null;
+    if (['tout', 'totalité', 'totalite'].indexOf(brut) !== -1) return detenue;
+    var pct = brut.slice(-1) === '%'; if (pct) brut = brut.slice(0, -1);
+    var m = brut.match(/^(\d+(?:\.\d+)?)(?:\/(\d+(?:\.\d+)?))?$/); if (!m) return NaN;
+    var a = decimal(m[1]), b = m[2] ? decimal(m[2]) : [1, 1];
+    if (!b[0]) return NaN;
+    var f = frac(a[0] * b[1], a[1] * b[0] * (pct ? 100 : 1));
+    return (f[0] > 0 && f[0] <= f[1]) ? f : NaN;
+  }
+  function txtFrac(f) { return f[0] === f[1] ? 'totalité' : f[0] + '/' + f[1]; }
+  function m2(f) { return S ? (f[0] / f[1] * S) : null; }
+  function txtM2(v) { return v === null ? '' : v.toLocaleString('fr-FR', {maximumFractionDigits: 2}) + ' m²'; }
+  function somme(liste) { var s = [0, 1]; liste.forEach(function (f) { s = frac(s[0] * f[1] + f[0] * s[1], s[1] * f[1]); }); return s; }
+
+  function recalculer() {
+    var cedees = [], recues = [];
+    document.querySelectorAll('.champ-cede').forEach(function (c) {
+      var sortie = document.querySelector('.sortie-m2[data-pour="' + c.id + '"]'), d = c.getAttribute('data-detient').split('/').map(Number);
+      var f = lirePart(c.value, d);
+      if (f === null) { sortie.textContent = ''; sortie.className = 'col-md-4 small fw-semibold text-primary sortie-m2'; return; }
+      if (Number.isNaN(f)) { sortie.textContent = 'Part invalide'; sortie.className = 'col-md-4 small fw-semibold text-danger sortie-m2'; return; }
+      var trop = f[0] * d[1] > d[0] * f[1];            // plus que ce qu'il détient
+      cedees.push(f);
+      var reste = frac(d[0] * f[1] - f[0] * d[1], d[1] * f[1]);
+      sortie.className = 'col-md-4 small fw-semibold sortie-m2 ' + (trop ? 'text-danger' : 'text-primary');
+      sortie.textContent = trop ? 'Dépasse sa part (' + d[0] + '/' + d[1] + ')'
+        : ('= ' + (txtM2(m2(f)) || txtFrac(f)) + ' cédés' + (S ? ' · il lui restera ' + txtM2(m2(reste)) : ''));
+    });
+    var recuM2 = 0, nbRecus = 0;
+    document.querySelectorAll('.champ-recu').forEach(function (c) {
+      var ligne = c.closest('.ligne-beneficiaire'), sortie = ligne.querySelector('.sortie-recu');
+      if (c.name === 'b_m2') {                                // superficie reçue saisie en m²
+        var v = lireM2(c.value);
+        if (v === null) { sortie.textContent = ''; return; }
+        if (Number.isNaN(v)) { sortie.className = 'fw-semibold text-danger sortie-recu'; sortie.textContent = 'Superficie invalide (nombre de m² attendu)'; return; }
+        recuM2 += v; nbRecus++;
+        var tropGrand = S && v > S + 0.01;
+        sortie.className = 'fw-semibold sortie-recu ' + (tropGrand ? 'text-danger' : 'text-primary');
+        sortie.textContent = tropGrand ? 'Dépasse la superficie de la parcelle (' + txtM2(S) + ')' : '= ' + (v / S * 100).toLocaleString('fr-FR', {maximumFractionDigits: 2}) + ' % de la parcelle';
+        return;
+      }
+      var f = lirePart(c.value, null);                          // sans superficie connue : part en fraction, comme avant
+      if (f === null) { sortie.textContent = ''; return; }
+      if (Number.isNaN(f)) { sortie.textContent = 'Part invalide'; sortie.className = 'fw-semibold text-danger sortie-recu'; return; }
+      recues.push(f);
+      sortie.className = 'fw-semibold text-primary sortie-recu';
+      sortie.textContent = '= ' + txtFrac(f) + ' reçus';
+    });
+    var bilan = document.getElementById('bilan-parts');
+    if (!cedees.length && !recues.length && !nbRecus) { bilan.textContent = ''; return; }
+    if (S) {                                                    // tout est en m² : cédé, reçu, reste à attribuer
+      var c1 = somme(cedees), cedeM2 = c1[0] / c1[1] * S, reste = cedeM2 - recuM2, egal = cedees.length > 0 && Math.abs(reste) <= 0.01;
+      bilan.className = 'small mt-2 fw-semibold ' + (egal ? 'text-success' : 'text-warning');
+      bilan.textContent = 'Total cédé : ' + txtM2(cedeM2) + ' · Total reçu : ' + txtM2(recuM2)
+        + (egal ? ' ✓' : (reste > 0 ? ' — reste à attribuer : ' + txtM2(reste) : ' — ' + txtM2(-reste) + ' de trop'));
+      bilan.setAttribute('data-reste', String(reste));
+      return;
+    }
+    var c = somme(cedees), r = somme(recues), egalF = c[0] * r[1] === r[0] * c[1];
+    bilan.className = 'small mt-2 fw-semibold ' + (egalF && cedees.length ? 'text-success' : 'text-warning');
+    bilan.textContent = 'Total cédé : ' + txtFrac(c) + ' · Total reçu : ' + txtFrac(r) + (egalF && cedees.length ? ' ✓' : ' — les deux totaux doivent être égaux');
+  }
+  function lireM2(brut) {                                         // « 225,25 », « 225.25 m² » -> nombre ; null : vide ; NaN : invalide
+    brut = (brut || '').toLowerCase().replace(/m²|m2/g, '').replace(/\s/g, '').replace(',', '.');
+    if (!brut) return null;
+    var v = Number(brut);
+    return (/^\d+(\.\d+)?$/.test(brut) && v > 0) ? v : NaN;
+  }
+  document.getElementById('form-mutation').addEventListener('input', recalculer);
+  conteneur.addEventListener('click', function (e) {
+    var b = e.target.closest('.btn-solde');                      // « Attribuer le solde » : complète la ligne avec ce qui reste à attribuer
+    if (b) {
+      var ligne = b.closest('.ligne-beneficiaire'), champ = ligne.querySelector('.champ-recu');
+      var reste = parseFloat(document.getElementById('bilan-parts').getAttribute('data-reste') || '0'), actuel = lireM2(champ.value);
+      var cible = reste + (actuel && !Number.isNaN(actuel) ? actuel : 0);
+      if (cible > 0) { champ.value = (Math.round(cible * 100) / 100).toLocaleString('fr-FR', {useGrouping: false, maximumFractionDigits: 2}); }
+    }
+    setTimeout(recalculer, 0);
+  });
+  recalculer();
+})();
+</script>
+{% endblock %}

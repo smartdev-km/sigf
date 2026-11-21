@@ -1,0 +1,80 @@
+/* Graphiques du tableau de bord. Couleurs : palette validée (voir tests/test_dashboard.py), fond blanc des cartes.
+   Marques fines, repères discrets, texte en encre (jamais dans la couleur de la série). */
+.viz {
+  --viz-surface: #ffffff; --viz-ink: #0b0b0b; --viz-ink-2: #52514e; --viz-muted: #898781;
+  --viz-grid: #e1e0d9; --viz-base: #c3c2b7; --viz-hover: rgba(11, 11, 11, 0.04); --viz-ring: rgba(11, 11, 11, 0.10);
+  --viz-s1: #2a78d6; --viz-s2: #eb6834; --viz-s3: #1baf7a;   /* séries 1 à 3, dans cet ordre */
+  --viz-gris: #c3c2b7;                                         /* mise en retrait (emphase) */
+  --viz-bon: #006300; --viz-mauvais: #d03b3b;                   /* sens d'une variation, toujours avec flèche + texte */
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/* ---- filtres : une seule rangée au-dessus de ce qu'ils filtrent ---- */
+.viz-filtres { display: flex; flex-wrap: wrap; gap: .75rem 1rem; align-items: center; }
+.viz-filtres label { font-size: .8rem; color: var(--viz-ink-2); margin: 0 .35rem 0 0; }
+.viz-filtres .note { font-size: .8rem; color: var(--viz-muted); }
+
+/* ---- tuile de chiffre clé ---- */
+.viz-tuile { padding: 1rem 1.1rem; height: 100%; display: flex; justify-content: space-between; gap: .75rem; }
+.viz-tuile-libelle { font-size: .85rem; color: var(--viz-ink-2); }
+.viz-tuile-valeur { font-size: 1.9rem; font-weight: 600; line-height: 1.15; color: var(--viz-ink); margin: .15rem 0; }
+.viz-tuile-precision { font-size: .78rem; color: var(--viz-muted); }
+.viz-delta { font-size: .8rem; display: flex; align-items: center; gap: .1rem; }
+.viz-delta.bon { color: var(--viz-bon); } .viz-delta.mauvais { color: var(--viz-mauvais); } .viz-delta.neutre { color: var(--viz-ink-2); }
+.viz-trace { align-self: flex-end; flex: none; }
+
+/* ---- carte de graphique ---- */
+.viz-carte { padding: 1.1rem 1.25rem 1rem; height: 100%; display: flex; flex-direction: column; }
+.viz-carte-tete { display: flex; justify-content: space-between; align-items: flex-start; gap: .75rem; margin-bottom: .6rem; }
+.viz-titre { font-size: .95rem; font-weight: 600; margin: 0; color: var(--viz-ink); }
+.viz-sous-titre { font-size: .78rem; color: var(--viz-muted); margin-top: .1rem; }
+.viz-bascule { flex: none; font-size: .75rem; padding: .1rem .5rem; }
+.viz-corps { flex: 1; }
+.viz-carte[data-vue="tableau"] .viz-trace-zone, .viz-carte[data-vue="tableau"] .viz-legende { display: none; }
+.viz-carte:not([data-vue="tableau"]) .viz-tableau { display: none; }
+.viz-tableau table { font-size: .85rem; margin: 0; }
+.viz-tableau th { font-weight: 600; color: var(--viz-ink-2); }
+.viz-tableau td:not(:first-child), .viz-tableau th:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+.viz-vide { color: var(--viz-muted); font-size: .85rem; margin: 1.5rem 0; text-align: center; }
+
+/* ---- légende (≥ 2 séries) : une clé en trait, nom en encre secondaire ---- */
+.viz-legende { display: flex; flex-wrap: wrap; gap: .3rem 1.1rem; margin-bottom: .4rem; font-size: .78rem; color: var(--viz-ink-2); }
+.viz-leg { display: inline-flex; align-items: center; gap: .4rem; }
+.viz-cle { display: inline-block; width: 16px; height: 2px; border-radius: 1px; }
+
+/* ---- barres horizontales : épaisseur plafonnée, bout arrondi 4 px, base droite, valeur au bout ---- */
+.viz-ligne { display: grid; grid-template-columns: minmax(108px, 40%) 1fr; align-items: center; gap: .6rem; min-height: 38px;
+  padding: .3rem .35rem; margin: 0 -.35rem; border-radius: 6px; color: inherit; text-decoration: none; }
+a.viz-ligne:hover, .viz-ligne:focus-visible { background: var(--viz-hover); outline: none; color: inherit; }
+.viz-ligne:focus-visible { box-shadow: 0 0 0 2px var(--viz-s1); }
+.viz-etiquette { font-size: .82rem; color: var(--viz-ink-2); line-height: 1.25; }
+.viz-piste { display: flex; align-items: center; gap: .5rem; min-width: 0; }
+.viz-barre { height: 16px; border-radius: 0 4px 4px 0; background: var(--viz-s1); transition: filter .12s; flex: none; }
+.viz-barre.inactif { background: var(--viz-gris); }
+.viz-ligne:hover .viz-barre, .viz-ligne:focus-visible .viz-barre { filter: brightness(1.12); }
+.viz-valeur { font-size: .82rem; font-weight: 600; color: var(--viz-ink); white-space: nowrap; }
+
+/* ---- courbes (SVG) ---- */
+.viz-svg { display: block; width: 100%; height: auto; overflow: visible; touch-action: pan-y; }
+.viz-svg:focus-visible { outline: 2px solid var(--viz-s1); outline-offset: 4px; border-radius: 4px; }
+.viz-svg text { font-family: inherit; }
+.viz-axe text { fill: var(--viz-muted); font-size: 11px; }
+.viz-fin-valeur { fill: var(--viz-ink); font-size: 11.5px; font-weight: 600; }
+
+/* ---- infobulle : la valeur d'abord, le nom ensuite ---- */
+.viz-tip { position: fixed; z-index: 2000; pointer-events: none; background: var(--viz-surface, #fff); border: 1px solid var(--viz-ring);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .12); border-radius: 6px; padding: .45rem .65rem; font-size: .8rem; max-width: 250px;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #0b0b0b; }
+.viz-tip[hidden] { display: none; }
+.viz-tip-tete { font-weight: 600; margin-bottom: .2rem; }
+.viz-tip-val { font-weight: 600; color: #0b0b0b; }
+.viz-tip-nom { color: #52514e; }
+.viz-tip-ligne { display: flex; align-items: center; gap: .5rem; justify-content: space-between; }
+.viz-tip-ligne .gauche { display: inline-flex; align-items: center; gap: .4rem; color: #52514e; }
+.viz-tip-cle { display: inline-block; width: 12px; height: 2px; border-radius: 1px; }
+
+/* ---- fil d'activité ---- */
+.viz-fil { list-style: none; margin: 0; padding: 0; }
+.viz-fil li { padding: .5rem 0; border-bottom: 1px solid var(--viz-grid, #e1e0d9); font-size: .85rem; }
+.viz-fil li:last-child { border-bottom: 0; }
+.viz-fil .quand { font-size: .75rem; color: #898781; }

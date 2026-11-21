@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+{% block title %}Vérification d'un document{% endblock %}
+{% block head %}<meta name="robots" content="noindex, nofollow"><link rel="stylesheet" href="{{ url_for('static', filename='css/verif.css') }}">{% endblock %}
+
+{# ---------------------------------------------------------------- briques ---------------------------------------------------------------- #}
+{% macro verdict(etat, rec, motif=None) %}
+  {% set m = {
+    'valide':   {'icone': 'patch-check-fill',        'titre': 'Document authentique',
+                 'texte': "Ce document a bien été émis par le service foncier et correspond à l'état actuel du dossier."},
+    'obsolete': {'icone': 'exclamation-triangle-fill', 'titre': 'Authentique, mais non à jour',
+                 'texte': "Ce document a bien été émis, mais le dossier a été modifié depuis son impression. Les informations ci-dessous sont celles du jour de l'émission : demandez un exemplaire à jour."},
+    'cloture':  {'icone': 'diagram-2-fill',          'titre': 'Parcelle divisée ou fusionnée',
+                 'texte': "Ce document a bien été émis, mais la parcelle qu'il décrit n'existe plus : elle a été divisée ou fusionnée depuis. Les informations ci-dessous sont celles du jour de l'émission. Demandez les documents des nouvelles parcelles."},
+    'bloque':   {'icone': 'pause-circle-fill',        'titre': 'Document suspendu',
+                 'texte': "Ce document a bien été émis, mais le dossier correspondant fait l'objet d'un examen. Ne vous fiez pas à ce document avant d'avoir contacté le service foncier."},
+    'revoque':  {'icone': 'slash-circle-fill',       'titre': 'Document révoqué',
+                 'texte': ("Cet exemplaire a été annulé le " ~ (rec.revoque_at.strftime('%d/%m/%Y') if rec and rec.revoque_at else '') ~ ". Il n'a plus aucune valeur.")},
+    'altere':   {'icone': 'x-octagon-fill',          'titre': 'Enregistrement altéré',
+                 'texte': "L'intégrité de cet enregistrement n'a pas pu être confirmée. Ne vous fiez pas à ce document et contactez le service foncier."},
+    'inconnu':  {'icone': 'question-octagon-fill',   'titre': 'Code inconnu ou invalide',
+                 'texte': "Ce code ne correspond à aucun document émis par nos services. Si vous avez ce document en main, ne lui faites pas confiance et rapprochez-vous du service foncier."},
+  }[etat] %}
+  {% if etat == 'cloture' and motif in ('vente', 'donation', 'heritage', 'expropriation') %}
+    {% set m = {'icone': 'arrow-right-circle-fill', 'titre': 'Propriété transférée',
+                'texte': "Ce document a bien été émis, mais la propriété de cette parcelle a changé depuis (vente, donation, héritage ou expropriation). Il n'est plus à jour : demandez un document au nom du propriétaire actuel. Les informations ci-dessous sont celles du jour de l'émission."} %}
+  {% endif %}
+  <div class="verdict verdict-{{ etat }}" role="status">
+    <div class="icone"><i class="bi bi-{{ m.icone }}"></i></div>
+    <div><h2>{{ m.titre }}</h2><p>{{ m.texte }}</p></div>
+  </div>
+{% endmacro %}
+
+{% macro champ(libelle, valeur, large=False, mono=False) %}
+  {% if valeur %}<div class="champ{{ ' champ-large' if large }}{{ ' champ-mono' if mono }}"><div class="champ-label">{{ libelle }}</div><div class="champ-valeur">{{ valeur }}</div></div>{% endif %}
+{% endmacro %}
+
+{% macro formulaire() %}
+  <div class="card"><div class="card-body p-4">
+    <label class="form-label fw-semibold" for="code-verif">Code du document</label>
+    <p class="text-muted small mb-3">Scannez le QR code imprimé sur le document avec l'appareil photo du téléphone, ou saisissez ici le code inscrit sous le QR.</p>
+    <form method="get" action="{{ url_for('verif.accueil') }}" class="d-grid gap-2">
+      <input id="code-verif" class="form-control form-control-lg code-saisie" name="code" placeholder="Code (24 caractères)"
+             maxlength="40" autocomplete="off" autocapitalize="characters" spellcheck="false" required>
+      <button class="btn btn-primary btn-lg"><i class="bi bi-shield-check me-1"></i>Vérifier</button>
+    </form>
+  </div></div>
+{% endmacro %}
+
+{% macro aide() %}
+  <div class="aide-code mt-3">
+    <svg viewBox="0 0 270 170" role="img" aria-label="Schéma : le code se trouve sous le QR code, en bas du document">
+      <rect x="40" y="6" width="190" height="158" rx="6" fill="#fff" stroke="#cdd5df" stroke-width="1.5"/>
+      <rect x="62" y="22" width="110" height="7" rx="3" fill="#dfe5ec"/><rect x="62" y="38" width="146" height="5" rx="2.5" fill="#eef1f5"/>
+      <rect x="62" y="50" width="130" height="5" rx="2.5" fill="#eef1f5"/><rect x="62" y="62" width="140" height="5" rx="2.5" fill="#eef1f5"/>
+      <g fill="#17324d"><rect x="158" y="82" width="46" height="46" rx="2" fill="none" stroke="#17324d" stroke-width="2"/>
+        <rect x="163" y="87" width="12" height="12"/><rect x="187" y="87" width="12" height="12"/><rect x="163" y="111" width="12" height="12"/>
+        <rect x="180" y="104" width="5" height="5"/><rect x="190" y="112" width="8" height="8"/><rect x="178" y="92" width="5" height="5"/></g>
+      <rect x="132" y="136" width="100" height="16" rx="4" fill="#e7f0fb" stroke="#0d6efd" stroke-width="1.5" stroke-dasharray="4 3"/>
+      <text x="182" y="148" font-family="ui-monospace,monospace" font-size="8" text-anchor="middle" fill="#0b4fb3">ABCD-EFGH-IJKL…</text>
+      <path d="M126 144 L104 144" stroke="#0d6efd" stroke-width="1.5" marker-end="url(#fl)"/>
+      <defs><marker id="fl" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 z" fill="#0d6efd"/></marker></defs>
+      <rect x="62" y="140" width="40" height="5" rx="2.5" fill="#dfe5ec"/><rect x="62" y="150" width="30" height="5" rx="2.5" fill="#eef1f5"/>
+    </svg>
+    <div class="legende">Le code est imprimé <strong>sous le QR code</strong>, en bas du document.</div>
+  </div>
+{% endmacro %}
+
+{% macro etat_badge(etat) %}
+  {% if etat == 'valide' %}<span class="badge text-bg-success">Valide</span>
+  {% elif etat == 'revoque' %}<span class="badge text-bg-danger">Révoqué</span>
+  {% elif etat == 'cloture' %}<span class="badge text-bg-secondary">Parcelle clôturée</span>
+  {% elif etat == 'obsolete' %}<span class="badge text-bg-warning">Non à jour</span>
+  {% elif etat == 'bloque' %}<span class="badge text-bg-danger">Suspendu</span>
+  {% else %}<span class="badge text-bg-dark">Altéré</span>{% endif %}
+{% endmacro %}
+
+{% macro fiche(contenu, rec, titre_doc, code_affiche, etat) %}
+  <div class="card mb-3{{ ' fiche-sans-valeur' if etat == 'revoque' }}">
+    <div class="card-header bg-white py-3 doc-tete">
+      <span class="doc-titre">{{ titre_doc }}</span>
+      <span class="d-flex gap-2 flex-wrap">
+        {% if etat == 'revoque' %}<span class="doc-puce doc-puce-rouge"><i class="bi bi-slash-circle me-1"></i>Sans valeur</span>
+        {% elif etat in ('obsolete', 'cloture', 'bloque') %}<span class="doc-puce doc-puce-ambre">Au jour de l'émission</span>{% endif %}
+        <span class="doc-puce">Copie n° {{ rec.copie_n }} · émis le {{ rec.emis_at.strftime('%d/%m/%Y') }}</span>
+      </span>
+    </div>
+    <div class="card-body p-4">
+      <div class="champs">
+        {% if contenu.mutation is defined %}
+        {{ champ('Mutation', {'vente': 'Vente', 'donation': 'Donation', 'heritage': 'Héritage (succession)', 'expropriation': 'Expropriation', 'hypotheque': 'Inscription d\'hypothèque', 'mainlevee': 'Mainlevée d\'hypothèque'}[contenu.mutation]) }}
+        {{ champ('Date de l\'acte', contenu.date_acte[8:10] ~ '/' ~ contenu.date_acte[5:7] ~ '/' ~ contenu.date_acte[0:4]) }}
+        {{ champ('Référence de l\'acte', contenu.reference, large=True) }}
+        {% if contenu.montant %}{{ champ('Prix' if contenu.mutation in ('vente',) else 'Montant', '{:,} KMF'.format(contenu.montant).replace(',', ' ')) }}{% endif %}
+        {% for x in contenu.parties %}
+        {{ champ({'cedant': 'Cédant', 'beneficiaire': 'Bénéficiaire', 'creancier': 'Créancier'}[x.role], x.nom ~ ((' · ' ~ x.part) if x.part else '') ~ ((' (' ~ ('{:,.2f}'.format(x.m2).replace(',', ' ').replace('.', ',')).replace(',00', '') ~ ' m²)') if x.m2 else ''), large=True) }}
+        {% endfor %}
+        {{ champ('Dossier', contenu.dossier, mono=True) }}
+        {{ champ('Île', contenu.ile) }}
+        {{ champ('Commune', contenu.commune) }}
+        {{ champ('Village / quartier', contenu.village) }}
+        {% if contenu.superficie_m2 %}{{ champ('Superficie de la parcelle', '{:,.0f} m²'.format(contenu.superficie_m2).replace(',', ' ')) }}{% endif %}
+        {% if contenu.nouveau_dossier %}{{ champ('Nouveau dossier', contenu.nouveau_dossier, mono=True) }}{% endif %}
+        {{ champ('N° RTC', contenu.rsp, mono=True) }}
+        {{ champ('N° RTS', contenu.rcp, mono=True) }}
+        {% if contenu.annulee %}{{ champ('État de la mutation', 'Annulée', large=True) }}{% endif %}
+        {% else %}
+        {{ champ('Propriétaire(s)', contenu.proprietaire, large=True) }}
+        {{ champ('Dossier', contenu.dossier, mono=True) }}
+        {{ champ('Île', contenu.ile) }}
+        {{ champ('Commune', contenu.commune) }}
+        {{ champ('Village / quartier', contenu.village) }}
+        {{ champ('Référence parcelle', contenu.reference) }}
+        {% if contenu.superficie_m2 %}{{ champ('Superficie', '{:,.0f} m²'.format(contenu.superficie_m2).replace(',', ' ')) }}{% endif %}
+        {% if contenu.superficie_mesuree_m2 %}{{ champ('Superficie mesurée', '{:,.0f} m²'.format(contenu.superficie_mesuree_m2).replace(',', ' ')) }}{% endif %}
+        {% if 'charges' in contenu %}{{ champ('Charges inscrites', (contenu.charges ~ ' hypothèque(s) en vigueur') if contenu.charges else 'Aucune') }}{% endif %}
+        {% if 'mutations' in contenu %}{{ champ('Mutations enregistrées', contenu.mutations|string if contenu.mutations else 'Aucune') }}{% endif %}
+        {{ champ('N° RTC', contenu.rsp, mono=True) }}
+        {{ champ('N° RTS', contenu.rcp, mono=True) }}
+        {% endif %}
+      </div>
+    </div>
+    <div class="card-footer bg-white doc-pied py-3">
+      <i class="bi bi-eye me-1"></i>Comparez ces informations avec le document papier. Code : <span class="code-pastille">{{ code_affiche }}</span>
+    </div>
+  </div>
+{% endmacro %}
+
+{# ---------------------------------------------------------------- page ---------------------------------------------------------------- #}
+{% block content %}
+{% set connecte = current_user.is_authenticated %}
+{% set resultat = etat not in ('accueil', 'inconnu') %}
+<div class="verif {{ 'verif-app' if connecte else 'verif-public' }}">
+
+  {# ---- en-tête ---- #}
+  {% if connecte %}
+  <div class="verif-titre mb-4">
+    {% if resultat or etat == 'inconnu' %}<a class="retour" href="{{ url_for('verif.accueil') }}">← Vérification d'un document</a>{% endif %}
+    <h1>{{ "Résultat de la vérification" if resultat else "Vérification d'un document" }}</h1>
+    {% if not resultat %}<div class="text-muted">Contrôlez qu'un certificat, un extrait, une attestation ou un plan croquis est authentique et à jour.</div>{% endif %}
+  </div>
+  {% else %}
+  <header class="verif-entete">
+    <div class="verif-embleme"><i class="bi bi-shield-check"></i></div>
+    <div class="verif-pays">{{ config.ENTETE_PAYS }}</div>
+    <div class="verif-service">{{ config.ENTETE_SERVICE }}</div>
+    <h1>Vérification d'un document</h1>
+  </header>
+  {% endif %}
+
+  {# ================= saisie du code (accueil ou code inconnu) ================= #}
+  {% if not resultat %}
+    {% if etat == 'inconnu' %}{{ verdict('inconnu', None) }}{% endif %}
+    {% if connecte %}
+    <div class="row g-4">
+      <div class="col-lg-5">{{ formulaire() }}{{ aide() }}</div>
+      {% if agent and etat == 'accueil' %}
+      <div class="col-lg-7">
+        <div class="card">
+          <div class="card-header bg-white fw-semibold py-3"><i class="bi bi-clock-history me-1"></i>Dernières vérifications</div>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0 verif-table">
+              <thead class="table-light"><tr><th class="ps-3">Vérifié le</th><th>Document</th><th>Dossier</th><th>État</th><th class="text-end pe-3">Vérif.</th></tr></thead>
+              <tbody>
+              {% for r in recentes %}
+                <tr>
+                  <td class="text-nowrap small ps-3">{{ r.rec.derniere_verification_at|dt }}</td>
+                  <td><a class="text-decoration-none fw-semibold" href="{{ url_for('verif.page', code=r.rec.code) }}">{{ r.titre }}</a><div class="text-muted small text-nowrap">copie n° {{ r.rec.copie_n }}</div></td>
+                  <td class="text-nowrap"><a class="text-decoration-none" href="{{ url_for('main.detail_dossier', dossier_id=r.rec.dossier_id) }}">{{ r.rec.dossier.numero }}</a></td>
+                  <td>{{ etat_badge(r.etat) }}</td>
+                  <td class="text-end text-muted pe-3">{{ r.rec.nb_verifications }}</td>
+                </tr>
+              {% else %}
+                <tr><td colspan="5" class="text-center text-muted py-4">Aucun document vérifié pour le moment.</td></tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    {% else %}
+      {{ formulaire() }}{{ aide() }}
+    {% endif %}
+
+  {# ================= résultat ================= #}
+  {% else %}
+    {% set colonne_principale %}
+      {{ verdict(etat, rec, motif_cloture) }}
+      {% if contenu %}{{ fiche(contenu, rec, titre_doc, code_affiche, etat) }}{% endif %}
+    {% endset %}
+
+    {% if connecte and agent and rec %}
+    <div class="row g-4">
+      <div class="col-lg-8">{{ colonne_principale }}</div>
+      <div class="col-lg-4">
+        <div class="card panneau-agent">
+          <div class="card-header bg-white py-3"><span class="badge text-bg-primary badge-agent"><i class="bi bi-person-badge me-1"></i>Réservé aux agents</span></div>
+          <div class="card-body small">
+            <div class="section">
+              <div class="section-titre">Dossier</div>
+              <a class="btn btn-primary btn-sm w-100" href="{{ url_for('main.detail_dossier', dossier_id=rec.dossier_id) }}#tracabilite"><i class="bi bi-folder2-open me-1"></i>Ouvrir {{ rec.dossier.numero }}</a>
+            </div>
+            <div class="section">
+              <div class="section-titre">Émission</div>
+              <div><span class="text-muted">Imprimé par</span> <strong>{{ rec.emis_par.nom }}</strong></div>
+              <div class="text-muted">le {{ rec.emis_at|dt }}</div>
+            </div>
+            <div class="section">
+              <div class="section-titre">Vérifications</div>
+              <div><strong>{{ rec.nb_verifications }}</strong> au total</div>
+              {% if rec.derniere_verification_at %}<div class="text-muted">dernière le {{ rec.derniere_verification_at|dt }}</div>{% endif %}
+            </div>
+            {% if rec.revoque_at %}
+            <div class="section">
+              <div class="section-titre">Révocation</div>
+              <div>{{ rec.revoque_par.nom if rec.revoque_par }} le {{ rec.revoque_at|dt }}</div>
+              <div class="text-muted fst-italic">{{ rec.revoque_motif }}</div>
+            </div>
+            {% endif %}
+            {% if peut_revoquer and not rec.revoque_at %}
+            <div class="section">
+              <form method="post" action="{{ url_for('verif.revoquer', rec_id=rec.id) }}"
+                    onsubmit="var m = prompt('Motif de la révocation (obligatoire) :'); if (!m) return false; this.motif.value = m; return true;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="motif">
+                <button class="btn btn-outline-danger btn-sm w-100"><i class="bi bi-slash-circle me-1"></i>Révoquer cet exemplaire</button>
+              </form>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% else %}
+      {{ colonne_principale }}
+    {% endif %}
+    <div class="text-center mt-4"><a class="btn btn-outline-primary" href="{{ url_for('verif.accueil') }}"><i class="bi bi-arrow-repeat me-1"></i>Vérifier un autre document</a></div>
+  {% endif %}
+</div>
+
+{# saisie assistée : majuscules, caractères valides seulement, tirets tous les 4 caractères #}
+<script>
+(function () {
+  var champ = document.getElementById('code-verif');
+  if (!champ) return;
+  champ.addEventListener('input', function () {
+    var brut = champ.value.toUpperCase().replace(/[^A-Z2-7]/g, '').slice(0, 24);
+    champ.value = brut.replace(/(.{4})(?=.)/g, '$1-');
+  });
+})();
+</script>
+{% endblock %}

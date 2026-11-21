@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Propriétaires{% endblock %}
+{% block content %}
+<div class="mb-3">
+  <h1 class="h3 mb-0">Propriétaires</h1>
+  <div class="text-muted small">{{ total }} personne{{ 's' if total > 1 }} — reconnues par leur n° de pièce d'identité{% if restreint %} · uniquement les propriétaires de vos dossiers{% endif %}</div>
+</div>
+
+{% if demandes %}
+<ul class="nav nav-tabs mb-3">
+  <li class="nav-item"><a class="nav-link {{ 'active' if onglet == 'liste' }}" href="{{ url_for('proprietaires.liste') }}">Propriétaires</a></li>
+  <li class="nav-item"><a class="nav-link {{ 'active' if onglet == 'attente' }}" href="{{ url_for('proprietaires.liste', onglet='attente') }}">
+    <i class="bi bi-hourglass-split text-warning me-1"></i>Modifications en attente de validation <span class="badge text-bg-warning ms-1">{{ demandes|length }}</span></a></li>
+</ul>
+{% endif %}
+
+{% if onglet == 'attente' %}
+{% with depuis = 'liste' %}{% include "proprietaires/_demandes.html" %}{% endwith %}
+{% else %}
+<form class="card card-body mb-3" method="get">
+  <div class="row g-2">
+    <div class="col-md-10"><input class="form-control" name="q" value="{{ q }}" placeholder="Nom, prénom, n° de pièce d'identité, téléphone…"></div>
+    <div class="col-md-2"><button class="btn btn-outline-primary w-100">Rechercher</button></div>
+  </div>
+</form>
+
+<div class="card"><div class="table-responsive">
+  <table class="table table-hover align-middle mb-0">
+    <thead class="table-light"><tr><th>Nom</th><th>Pièce d'identité</th><th>Téléphone</th><th class="text-center">Parcelles</th>{% if not restreint %}<th class="text-center">Anciens biens</th><th class="text-center">Hypothèques à son profit</th>{% endif %}<th class="text-end">Superficie</th>{% if peut_proposer %}<th></th>{% endif %}</tr></thead>
+    <tbody>
+    {% for p in pagination.items %}
+      {% set r = resume[p.id] %}
+      <tr>
+        <td><a class="fw-semibold text-decoration-none" href="{{ url_for('proprietaires.profil', proprietaire_id=p.id) }}">{{ p.nom_complet }}</a>
+          {% if r.fiches > 1 %}<div class="small text-muted">{{ r.fiches }} fiches regroupées</div>{% endif %}</td>
+        <td class="text-nowrap">{{ p.identite or '—' }}</td>
+        <td class="text-nowrap">{{ p.telephone or '—' }}</td>
+        <td class="text-center">{{ r.actuels }}</td>
+        {% if not restreint %}<td class="text-center">{{ r.anciens }}</td>
+        <td class="text-center">{{ r.creances }}</td>{% endif %}
+        <td class="text-end text-nowrap">{% if r.superficie %}{{ '{:,.0f}'.format(r.superficie).replace(',', ' ') }} m²{% else %}—{% endif %}</td>
+        {% if peut_proposer %}<td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('proprietaires.modifier', proprietaire_id=p.id) }}" title="Modifier (à faire valider par le Directeur)"><i class="bi bi-pencil-square"></i></a></td>{% endif %}
+      </tr>
+    {% else %}
+      <tr><td colspan="{{ 5 if restreint else 8 }}" class="text-center text-muted py-5">{% if q %}Aucune personne ne correspond à « {{ q }} ».{% else %}Aucun propriétaire pour le moment.{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div></div>
+
+{% if pagination.pages > 1 %}
+<nav class="mt-3"><ul class="pagination">
+  {% for pg in pagination.iter_pages() %}
+    {% if pg %}<li class="page-item {{ 'active' if pg == pagination.page }}"><a class="page-link" href="{{ url_for('proprietaires.liste', page=pg, q=q) }}">{{ pg }}</a></li>
+    {% else %}<li class="page-item disabled"><span class="page-link">…</span></li>{% endif %}
+  {% endfor %}
+</ul></nav>
+{% endif %}
+{% endif %}
+{% endblock %}

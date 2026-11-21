@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Signaler un problème{% endblock %}
+{% block content %}
+<nav class="small mb-2"><a href="{{ url_for('main.detail_dossier', dossier_id=d.id) if d else url_for('main.liste_dossiers') }}" class="text-decoration-none"><i class="bi bi-arrow-left me-1"></i>{{ d.numero if d else 'Dossiers' }}</a></nav>
+<div class="row"><div class="col-lg-7">
+  <h1 class="h3 mb-1">Signaler un problème</h1>
+  <div class="text-muted small mb-3">Le dossier sera <strong>bloqué</strong> (lecture seule) jusqu'à ce que le Directeur lève le blocage, preuve à l'appui.</div>
+  <form method="post" class="card card-body">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="mb-3"><label class="form-label">Numéro du dossier *</label>
+      {% if d %}<input type="hidden" name="dossier" value="{{ d.id }}"><input class="form-control" value="{{ d.numero }} — {{ d.proprietaire_label }}" disabled>
+      {% else %}<input class="form-control" name="numero" value="{{ numero }}" placeholder="SIGF-2026-00012" required autocomplete="off">{% endif %}</div>
+    <div class="mb-3"><label class="form-label">Type de problème *</label>
+      <select class="form-select" name="type" required>
+        <option value="">Choisir…</option>
+        {% for groupe, lignes in groupes %}
+        <optgroup label="{{ groupe }}">{% for code, libelle in lignes %}<option value="{{ code }}" {{ 'selected' if f.get('type') == code }}>{{ libelle }}</option>{% endfor %}</optgroup>
+        {% endfor %}
+      </select></div>
+    <div class="mb-3"><label class="form-label">Description *</label>
+      <textarea class="form-control" name="description" rows="4" maxlength="2000" required placeholder="Que s'est-il passé ? Qui est concerné ? Quels éléments avez-vous ?">{{ f.get('description', '') }}</textarea>
+      <div class="form-text">Soyez précis : le Directeur s'appuiera sur ce texte pour décider.</div></div>
+    <div class="alert alert-warning small py-2"><i class="bi bi-exclamation-triangle me-1"></i>Dès l'envoi, plus aucune mutation, correction, impression, dépôt de document ni avancement du circuit n'est possible sur ce dossier.</div>
+    <div class="d-flex gap-2"><button class="btn btn-danger"><i class="bi bi-slash-circle me-1"></i>Bloquer le dossier</button>
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.detail_dossier', dossier_id=d.id) if d else url_for('main.liste_dossiers') }}">Annuler</a></div>
+  </form>
+</div></div>
+{% endblock %}

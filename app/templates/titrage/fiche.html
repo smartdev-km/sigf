@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Titrage · {{ d.numero }}{% endblock %}
+{% block content %}
+<a class="small text-decoration-none" href="{{ url_for('titrage.page', etape=d.etape_titre) }}">← Titrage</a>
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ d.numero }}</h1>
+    <div class="text-muted">{{ d.proprietaire_label }} · {{ d.parcelle.ile.nom }} · {{ d.parcelle.commune }}{% if d.parcelle.village %} · {{ d.parcelle.village }}{% endif %}</div>
+  </div>
+  <div class="d-flex flex-wrap gap-2 align-items-center">
+    {% if titrage.termine %}<span class="badge text-bg-success fs-6">Titré</span>{% elif titrage.etape %}<span class="badge text-bg-info fs-6">À faire : {{ titrage.libelles[titrage.etape] }} · {{ titrage.acteur }}</span>{% endif %}
+    {% if bloque %}<span class="badge text-bg-danger fs-6"><i class="bi bi-slash-circle me-1"></i>Dossier bloqué</span>{% endif %}
+    {% if peut_fiche %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.detail_dossier', dossier_id=d.id) }}"><i class="bi bi-folder2-open me-1"></i>Fiche du dossier</a>{% endif %}
+  </div>
+</div>
+
+{% if bloque %}
+<div class="alert alert-danger" role="alert" id="blocage">
+  <div class="fw-semibold"><i class="bi bi-slash-circle me-1"></i>Dossier bloqué — {{ blocages_actifs|length }} problème{{ 's' if blocages_actifs|length > 1 }} actif{{ 's' if blocages_actifs|length > 1 }}</div>
+  <div class="small mb-2">Lecture seule : aucune étape ne peut être enregistrée jusqu'à la levée du blocage par le Directeur, preuve à l'appui.</div>
+  {% for b in blocages_actifs %}
+  <div class="bg-white text-body border rounded p-2 mb-2">
+    <span class="badge text-bg-danger">{{ b.type_label }}</span>
+    <span class="small text-muted ms-1">signalé par {{ b.signale_par.nom }} le {{ b.signale_at|dt }}</span>
+    <div class="small mt-1" style="white-space: pre-wrap">{{ b.description }}</div>
+    {% if peut_lever %}{% with depuis = 'titrage' %}{% include "blocages/_lever.html" %}{% endwith %}{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="card mb-3"><div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <span><i class="bi bi-signpost-split me-1"></i>Étapes du titrage</span>
+  {% if peut_bloquer %}<button class="btn btn-sm btn-outline-danger" type="button" data-bs-toggle="collapse" data-bs-target="#form-blocage" aria-expanded="false" aria-controls="form-blocage" title="Bloque le dossier jusqu'à ce que le Directeur lève le blocage"><i class="bi bi-slash-circle me-1"></i>Bloquer le dossier</button>
+  {% elif titrage.termine %}<span class="small text-muted"><i class="bi bi-lock me-1"></i>Dossier titré : il ne peut plus être bloqué</span>{% endif %}
+</div><div class="card-body">
+  {% if peut_bloquer %}
+  <div class="collapse mb-3" id="form-blocage">
+    <form method="post" action="{{ url_for('titrage.route_bloquer', dossier_id=d.id) }}" class="border border-danger rounded p-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="fw-semibold mb-2 text-danger">Signaler un problème et bloquer le dossier</div>
+      <div class="row g-2">
+        <div class="col-md-5"><label class="form-label small mb-1">Type de problème *</label>
+          <select class="form-select form-select-sm" name="type" required><option value="">Choisir…</option>
+            {% for groupe, lignes in groupes_problemes %}<optgroup label="{{ groupe }}">{% for code, libelle in lignes %}<option value="{{ code }}">{{ libelle }}</option>{% endfor %}</optgroup>{% endfor %}
+          </select></div>
+        <div class="col-md-7"><label class="form-label small mb-1">Description * <span class="text-muted">(au moins 10 caractères)</span></label>
+          <textarea class="form-control form-control-sm" name="description" rows="2" maxlength="2000" required placeholder="Que s'est-il passé ? Qui est concerné ? Quels éléments avez-vous ?"></textarea></div>
+      </div>
+      <div class="small text-muted mt-2"><i class="bi bi-exclamation-triangle me-1"></i>Dès l'envoi, plus aucune étape, mutation, correction ou impression n'est possible sur ce dossier.</div>
+      <button class="btn btn-sm btn-danger mt-2"><i class="bi bi-slash-circle me-1"></i>Bloquer le dossier</button>
+      <button class="btn btn-sm btn-link mt-2" type="button" data-bs-toggle="collapse" data-bs-target="#form-blocage">Annuler</button>
+    </form>
+  </div>
+  {% endif %}
+  {% with modifiable = True %}{% include "titrage/_suivi.html" %}{% endwith %}
+</div></div>
+
+<div class="row g-3">
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header bg-white fw-semibold">Le dossier</div><div class="card-body">
+    <dl class="row small mb-0">
+      <dt class="col-sm-5 text-muted fw-normal">Propriétaire{{ 's' if proprietaires|length > 1 }}</dt><dd class="col-sm-7">{{ d.proprietaire_label }}</dd>
+      <dt class="col-sm-5 text-muted fw-normal">Île · commune</dt><dd class="col-sm-7">{{ d.parcelle.ile.nom }} · {{ d.parcelle.commune }}</dd>
+      {% if d.parcelle.village %}<dt class="col-sm-5 text-muted fw-normal">Village / quartier</dt><dd class="col-sm-7">{{ d.parcelle.village }}</dd>{% endif %}
+      {% if d.parcelle.reference %}<dt class="col-sm-5 text-muted fw-normal">Référence</dt><dd class="col-sm-7">{{ d.parcelle.reference }}</dd>{% endif %}
+      {% if d.parcelle.superficie_m2 %}<dt class="col-sm-5 text-muted fw-normal">Superficie</dt><dd class="col-sm-7">{{ '{:,.0f}'.format(d.parcelle.superficie_m2).replace(',', ' ') }} m²</dd>{% endif %}
+      <dt class="col-sm-5 text-muted fw-normal">RTC / RTS</dt><dd class="col-sm-7">{{ d.rsp }} / {{ d.rcp }}</dd>
+      <dt class="col-sm-5 text-muted fw-normal">Certifié le</dt><dd class="col-sm-7">{{ d.valide_at|dt }}{% if d.valide_par %} · {{ d.valide_par.nom }}{% endif %}</dd>
+    </dl>
+  </div></div></div>
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header bg-white fw-semibold">Pièces</div><div class="card-body">
+    <div class="small fw-semibold mb-1">Scans du titrage</div>
+    {% for doc in scans %}
+    <div class="small"><a href="{{ url_for('documents.voir', doc_id=doc.id) }}" target="_blank" rel="noopener"><i class="bi bi-file-earmark-text me-1"></i>{{ doc.type }}</a> <span class="text-muted">· {{ doc.nom_original }} · {{ doc.created_at|dt }}</span></div>
+    {% else %}<div class="small text-muted">Aucun scan joint pour l'instant.</div>{% endfor %}
+    {% if emis %}
+    <div class="small fw-semibold mt-3 mb-1">Documents du dossier</div>
+    {% for r in emis %}
+    <div class="small"><a href="{{ url_for('main.exemplaire_pdf', rec_id=r.id) }}" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf me-1"></i>{{ titres_pdf.get(r.type, r.type) }}</a> <span class="text-muted">· copie n° {{ r.copie_n }}</span></div>
+    {% endfor %}
+    {% endif %}
+  </div></div></div>
+</div>
+{% endblock %}

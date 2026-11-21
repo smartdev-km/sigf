@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Dossiers{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="h3 mb-0">Dossiers</h1>
+    <div class="text-muted small">Nouveaux dossiers. Les dossiers papier numérisés sont dans <a href="{{ url_for('main.liste_anciens') }}">Anciens dossiers</a>.</div>
+  </div>
+  <div class="d-flex gap-2">
+    {% if peut_creer_dossier(current_user) %}
+    <a class="btn btn-primary" href="{{ url_for('main.nouveau_dossier') }}"><i class="bi bi-plus-lg me-1"></i>Nouveau dossier</a>
+    {% endif %}
+  </div>
+</div>
+
+<form class="card card-body mb-3" method="get">
+  <div class="row g-2">
+    <div class="{{ 'col-md-3' if current_user.role == C.ADMIN else 'col-md-6' }}"><input class="form-control" name="q" value="{{ filtres.q }}" placeholder="N°, propriétaire, commune, référence…"></div>
+    {% if current_user.role == C.ADMIN %}
+    <div class="col-md-3">
+      <select class="form-select" name="ile">
+        <option value="">Toutes les îles</option>
+        {% for i in iles %}<option value="{{ i.id }}" {{ 'selected' if filtres.ile == i.id }}>{{ i.nom }}</option>{% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    <div class="col-md-2"><button class="btn btn-outline-primary w-100">Rechercher</button></div>
+  </div>
+</form>
+
+{% if onglets %}
+<ul class="nav nav-tabs flex-nowrap overflow-auto mb-3 onglets-statuts" role="tablist" style="white-space: nowrap">
+  {% for k, libelle, nb in onglets %}
+  <li class="nav-item"><a class="nav-link {{ 'active' if filtres.statut == k }}{{ ' text-muted' if not nb and filtres.statut != k }}" href="{{ url_for('main.liste_dossiers', statut=k, q=filtres.q or None, ile=filtres.ile) }}">
+    <span class="badge rounded-pill text-bg-{{ STATUT_COULEUR[k] }} me-1" style="width: .6rem; height: .6rem; padding: 0; display: inline-block" aria-hidden="true"></span>{{ libelle }}
+    <span class="badge {{ 'text-bg-primary' if filtres.statut == k else 'text-bg-light border' }} ms-1">{{ nb }}</span></a></li>
+  {% endfor %}
+</ul>
+<script>
+/* Sur téléphone, les onglets défilent : on amène l'onglet actif au milieu. */
+(function () {
+  var liste = document.querySelector('.onglets-statuts'), actif = liste && liste.querySelector('.nav-link.active');
+  if (actif && liste.scrollWidth > liste.clientWidth) liste.scrollLeft = actif.offsetLeft - (liste.clientWidth - actif.offsetWidth) / 2;
+})();
+</script>
+{% endif %}
+
+<div class="card"><div class="table-responsive">
+  <table class="table table-hover align-middle mb-0">
+    <thead class="table-light"><tr><th>N°</th><th>Propriétaire</th><th>Localisation</th><th>Statut</th><th>Créé le</th></tr></thead>
+    <tbody>
+    {% for d in pagination.items %}
+      <tr>
+        <td class="text-nowrap"><a href="{{ url_for('main.detail_dossier', dossier_id=d.id) }}" class="fw-semibold text-decoration-none">{{ d.numero }}</a>{% if d.id in bloques %} <span class="badge text-bg-danger" title="Dossier bloqué : problème signalé"><i class="bi bi-slash-circle"></i> Bloqué</span>{% endif %}</td>
+        <td>{{ d.proprietaire_label }}</td>
+        <td>{{ d.parcelle.ile.nom }} · {{ d.parcelle.commune }}</td>
+        <td><span class="badge text-bg-{{ STATUT_COULEUR[d.statut] }}">{{ statut_affiche(d, current_user) }}</span>{% if d.statut == 'certifie' and d.etape_titre and current_user.role != C.TOPO_PRIVE %}<div class="small text-muted mt-1"><i class="bi bi-signpost-split me-1"></i>{{ titrage_libelle(d) }}</div>{% endif %}</td>
+        <td class="text-muted small text-nowrap">{{ d.created_at|dt }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="5" class="text-center text-muted py-4">{% if filtres.statut %}Aucun dossier dans « {{ libelle_onglet[filtres.statut] }} »{% if filtres.q %} pour cette recherche{% endif %}.{% else %}Aucun dossier.{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div></div>
+
+{% if pagination.pages > 1 %}
+<nav class="mt-3"><ul class="pagination">
+  {% for p in pagination.iter_pages() %}
+    {% if p %}
+    <li class="page-item {{ 'active' if p == pagination.page }}">
+      <a class="page-link" href="{{ url_for('main.liste_dossiers', page=p, q=filtres.q, ile=filtres.ile, statut=filtres.statut) }}">{{ p }}</a>
+    </li>
+    {% else %}<li class="page-item disabled"><span class="page-link">…</span></li>{% endif %}
+  {% endfor %}
+</ul></nav>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,14 @@
+Flask==3.1.0
+Flask-SQLAlchemy==3.1.1
+Flask-Login==0.6.3
+Flask-Migrate==4.0.7
+Flask-WTF==1.2.2
+SQLAlchemy>=2.0,<2.2
+gunicorn==23.0.0
+psycopg2-binary==2.9.10
+boto3==1.35.99
+reportlab==4.2.5
+shapely==2.0.6
+pyproj==3.7.0
+defusedxml==0.7.1
+Pillow>=10.0

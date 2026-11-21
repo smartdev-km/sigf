@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Paramètres{% endblock %}
+{% block content %}
+<h1 class="h3 mb-1">Paramètres</h1>
+<div class="text-muted small mb-3">{% if current_user.role == 'admin' %}Signatures numériques des comptes Directeur (consultation).{% else %}Réglages du compte {{ current_user.role_label }} de {{ current_user.nom }}.{% endif %}</div>
+
+{% if current_user.role == 'admin' %}
+{% set avec = directeurs|selectattr('signature_cle')|list|length %}
+<div class="card"><div class="card-header bg-white d-flex justify-content-between flex-wrap gap-2 align-items-center">
+  <span class="fw-semibold"><i class="bi bi-pen me-1"></i>Signatures des Directeurs</span>
+  <span class="small text-muted">{{ avec }} signature{{ 's' if avec > 1 }} enregistrée{{ 's' if avec > 1 }} sur {{ directeurs|length }} Directeur{{ 's' if directeurs|length > 1 }}</span></div>
+  <div class="table-responsive"><table class="table align-middle mb-0">
+    <thead class="table-light"><tr><th>Directeur</th><th>Île</th><th>Mention imprimée</th><th>Signature</th><th>Enregistrée le</th><th>Compte</th></tr></thead>
+    <tbody>
+    {% for u in directeurs %}
+      <tr>
+        <td><div class="fw-semibold">{{ u.nom }}</div><div class="small text-muted">{{ u.username }}</div></td>
+        <td>{% if u.ile %}{{ u.ile.nom }}{% else %}<span class="badge text-bg-warning" title="Ce Directeur n'est limité à aucune île">Non attribuée</span>{% endif %}</td>
+        <td>{{ u.signature_titre or titre_defaut }}</td>
+        <td>{% if u.signature_cle %}<span class="d-inline-block border rounded bg-white p-1"><img src="{{ url_for('parametres.image_du_directeur', user_id=u.id) }}?v={{ u.signature_at.strftime('%Y%m%d%H%M%S') if u.signature_at else '' }}" alt="Signature de {{ u.nom }}" style="max-height: 64px; max-width: 220px"></span>
+          {% else %}<span class="badge text-bg-secondary">Aucune signature</span>{% endif %}</td>
+        <td class="small text-nowrap">{{ u.signature_at|dt if u.signature_cle else '—' }}</td>
+        <td>{% if u.actif %}<span class="badge text-bg-success">Actif</span>{% else %}<span class="badge text-bg-secondary">Désactivé</span>{% endif %}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="text-center text-muted py-4">Aucun compte Directeur.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  <div class="card-footer bg-white small text-muted">Chaque signature est imprimée sur les certificats et attestations que ce Directeur a validés. Seul le Directeur peut déposer, remplacer ou supprimer sa signature.</div>
+</div>
+{% else %}
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card"><div class="card-header bg-white fw-semibold"><i class="bi bi-pen me-1"></i>Signature numérique</div><div class="card-body">
+      <p class="small text-muted">Votre signature est imprimée sur les <strong>certificats</strong> et les <strong>attestations</strong> des dossiers que vous avez validés, à la place de l'espace de signature manuscrite. Elle ne remplace pas le QR code : c'est lui qui garantit l'authenticité du document.</p>
+      <form method="post" action="{{ url_for('parametres.enregistrer_route') }}" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="dessin" id="champ-dessin" value="">
+        <ul class="nav nav-pills mb-3" role="tablist">
+          <li class="nav-item"><button type="button" class="nav-link active" id="onglet-dessin" data-mode-signature="dessin"><i class="bi bi-pencil me-1"></i>Dessiner ma signature</button></li>
+          <li class="nav-item"><button type="button" class="nav-link" id="onglet-import" data-mode-signature="import"><i class="bi bi-upload me-1"></i>Importer une image</button></li>
+        </ul>
+
+        <div id="volet-dessin">
+          <div class="position-relative border rounded bg-white" style="touch-action: none">
+            <canvas id="cadre-signature" aria-label="Cadre de signature : dessinez avec la souris, le doigt ou un stylet" style="display:block; width:100%; height:220px; touch-action:none; cursor:crosshair; border-radius:.375rem; background-image: linear-gradient(#cdd5df, #cdd5df); background-size: calc(100% - 48px) 1px; background-position: center calc(100% - 52px); background-repeat: no-repeat"></canvas>
+            <div id="invite-signature" class="position-absolute top-50 start-50 translate-middle text-muted small fst-italic" style="pointer-events:none"><i class="bi bi-pen me-1"></i>Signez ici</div>
+          </div>
+          <div class="d-flex flex-wrap gap-2 mt-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-annuler"><i class="bi bi-arrow-counterclockwise me-1"></i>Annuler le dernier trait</button>
+            <button type="button" class="btn btn-sm btn-outline-danger" id="btn-effacer"><i class="bi bi-eraser me-1"></i>Tout effacer</button>
+          </div>
+          <div class="form-text">Signez à la souris, au doigt ou au stylet. Le fond est transparent et le dessin est recadré automatiquement.</div>
+        </div>
+
+        <div id="volet-import" hidden>
+          <label class="form-label">Image de la signature</label>
+          <input class="form-control" type="file" name="signature" accept="image/png,image/jpeg">
+          <div class="form-text">PNG (de préférence à fond transparent) ou JPEG, {{ maximum_mo }} Mo au maximum. Signez sur papier blanc et photographiez ou scannez : le fond blanc est retiré automatiquement et l'image est recadrée.</div>
+        </div>
+
+        <div class="my-3"><label class="form-label">Mention sous la signature</label>
+          <input class="form-control" name="titre" maxlength="60" value="{{ current_user.signature_titre or '' }}" placeholder="{{ titre_defaut }}">
+          <div class="form-text">Par défaut « {{ titre_defaut }} ». Votre nom s'affiche aussi sous la signature.</div></div>
+        <button class="btn btn-primary"><i class="bi bi-save me-1"></i>Enregistrer</button>
+      </form>
+      <script src="{{ url_for('static', filename='js/signature_pad.js') }}"></script>
+    </div></div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card"><div class="card-header bg-white fw-semibold">Aperçu sur le certificat</div><div class="card-body">
+      <div class="border rounded p-3 bg-white text-center">
+        <div class="small">{{ current_user.signature_titre or titre_defaut }}</div>
+        <div style="min-height: 110px" class="d-flex align-items-center justify-content-center">
+          {% if current_user.signature_cle %}<img src="{{ url_for('parametres.image') }}?v={{ current_user.signature_at.strftime('%Y%m%d%H%M%S') if current_user.signature_at else '' }}" alt="Votre signature" style="max-width: 100%; max-height: 105px">
+          {% else %}<span class="text-muted small fst-italic">Aucune signature enregistrée : l'espace de signature manuscrite reste vide sur le document imprimé.</span>{% endif %}
+        </div>
+        {% if current_user.signature_cle %}<div class="small text-muted">{{ current_user.nom }}</div>{% endif %}
+      </div>
+      {% if current_user.signature_cle %}
+      <div class="small text-muted mt-2">Enregistrée le {{ current_user.signature_at|dt }}.</div>
+      <form method="post" action="{{ url_for('parametres.supprimer_route') }}" class="mt-2" onsubmit="return confirm('Supprimer votre signature numérique ? Les prochains certificats seront imprimés sans image de signature.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash me-1"></i>Supprimer ma signature</button>
+      </form>
+      {% endif %}
+    </div></div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

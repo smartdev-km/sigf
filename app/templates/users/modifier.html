@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Modifier {{ u.nom }}{% endblock %}
+{% block content %}
+<div class="row"><div class="col-md-8 col-lg-5">
+  <h1 class="h3 mb-3">Modifier le compte</h1>
+  <div class="card"><div class="card-body">
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% with peut_role = peut_changer_role, peut_ile = peut_changer_ile, ile_imposee = none %}{% include "users/_champs_compte.html" %}{% endwith %}
+      {% if not peut_changer_ile and u.role != 'admin' %}<div class="form-text mb-3 mt-n2">{% if u.id == current_user.id %}Vous ne pouvez pas changer votre propre île.{% else %}Seul un administrateur change l'île d'un compte.{% endif %}</div>{% endif %}
+      <div class="mb-3"><label class="form-label">Nouveau mot de passe provisoire</label>
+        <input class="form-control" type="text" name="password" minlength="{{ minimum }}" autocomplete="off">
+        <div class="form-text">Laisser vide pour ne pas le changer. Sinon au moins {{ minimum }} caractères ; l'utilisateur devra le changer à sa prochaine connexion.</div></div>
+      <button class="btn btn-primary">Enregistrer</button>
+      <a class="btn btn-link" href="{{ url_for('users.liste') }}">Annuler</a>
+    </form>
+  </div></div>
+</div></div>
+{% endblock %}

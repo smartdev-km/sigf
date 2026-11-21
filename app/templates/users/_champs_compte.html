@@ -1,0 +1,42 @@
+{# champs communs « Nouveau compte » / « Modifier le compte » : f, roles, peut_role (bool), iles, ile_imposee (facultatif), peut_ile (bool) #}
+<div class="mb-3"><label class="form-label">Nom complet *</label>
+  <input class="form-control" name="nom" maxlength="120" value="{{ f.get('nom','') }}" required></div>
+<div class="mb-3"><label class="form-label">Identifiant de connexion *</label>
+  <input class="form-control" name="username" value="{{ f.get('username','') }}" autocomplete="off" autocapitalize="none" required>
+  <div class="form-text">3 à 40 caractères : lettres, chiffres, point, tiret, underscore.</div></div>
+<div class="mb-3"><label class="form-label">Numéro de téléphone</label>
+  <input class="form-control" type="tel" name="telephone" maxlength="25" value="{{ f.get('telephone','') }}" autocomplete="off" placeholder="+269 333 20 20"></div>
+<div class="mb-3"><label class="form-label">Type de compte *</label>
+  <select class="form-select" name="role" id="champ-role" {{ 'required' if peut_role else 'disabled' }}>
+    {% for r, libelle in roles.items() %}<option value="{{ r }}" {{ 'selected' if f.get('role') == r }}>{{ libelle }}</option>{% endfor %}
+  </select>
+  {% if not peut_role %}<div class="form-text">Seul l'administrateur change le type de compte.</div>{% endif %}</div>
+<div class="mb-3" id="bloc-agrement"><label class="form-label">N° d'agrément du topographe</label>
+  <input class="form-control" name="agrement" maxlength="60" value="{{ f.get('agrement','') }}" autocomplete="off">
+  <div class="form-text">Imprimé avec le nom du topographe sur les plans croquis des dossiers qu'il lève.</div></div>
+<div class="mb-3" id="bloc-ile"><label class="form-label">Île attribuée *</label>
+  {% if ile_imposee %}
+    <input class="form-control" value="{{ ile_imposee.nom }}" disabled>
+    <div class="form-text">Le compte est créé sur votre île.</div>
+  {% else %}
+    <select class="form-select" name="ile_id" id="champ-ile" {{ 'disabled' if not peut_ile }}>
+      <option value="">Choisir une île…</option>
+      {% for i in iles %}<option value="{{ i.id }}" {{ 'selected' if f.get('ile_id')|string == i.id|string }}>{{ i.nom }}</option>{% endfor %}
+    </select>
+    <div class="form-text">Le compte ne voit que les informations de cette île (dossiers, propriétaires, mutations, carte, statistiques…). Un administrateur voit toutes les îles.</div>
+  {% endif %}</div>
+<script>
+(function () {
+  var role = document.getElementById('champ-role'), bloc = document.getElementById('bloc-ile');
+  if (!role || !bloc) return;
+  function maj() {
+    var admin = role.value === 'admin';
+    bloc.style.display = admin ? 'none' : '';
+    var ag = document.getElementById('bloc-agrement');
+    if (ag) ag.style.display = (role.value === 'topo_public' || role.value === 'topo_prive') ? '' : 'none';
+    var champ = document.getElementById('champ-ile');
+    if (champ && !champ.disabled) champ.required = !admin;
+  }
+  role.addEventListener('change', maj); maj();
+})();
+</script>

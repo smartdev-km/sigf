@@ -1,0 +1,4 @@
+-r requirements.txt
+pytest
+pypdf==5.1.0
+moto[s3]==5.0.27

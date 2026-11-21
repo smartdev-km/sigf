@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: sigf
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt && flask --app wsgi db upgrade && flask --app wsgi init-data
+    startCommand: gunicorn wsgi:app --workers 2 --timeout 60
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.3
+      - key: SECRET_KEY
+        generateValue: true
+      # Signe les QR codes. NE JAMAIS LE CHANGER après la première impression.
+      - key: QR_SECRET
+        generateValue: true
+      # Adresse publique du site, encodée dans les QR (ex. https://sigf.onrender.com)
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sigf-db
+          property: connectionString
+      # Stockage des scans (Cloudflare R2, Backblaze B2…) : à renseigner dans le tableau de bord Render
+      # Satellite Google (facultatif). Restreindre la clé aux référents HTTP du site dans Google Cloud.
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ENDPOINT_URL
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+
+databases:
+  - name: sigf-db
+    plan: basic-256mb

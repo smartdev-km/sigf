@@ -1,0 +1,68 @@
+body { background: #f4f6f9; }
+.sidebar { width: 240px; background: #17324d; }
+main { min-width: 0; }  /* le contenu ne déborde pas à côté du menu (tableaux larges) */
+/* Ordinateur : le menu reste FIXE à l'écran, seul le contenu défile ; il défile lui-même si l'écran est petit. */
+@media (min-width: 768px) {
+  .sidebar { position: sticky; top: 0; align-self: flex-start; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; }
+}
+/* Téléphone : le menu est un tiroir qui glisse depuis le COTÉ GAUCHE (bouton ☰ dans la barre du haut). */
+.topbar, .menu-fond { display: none; }
+@media (max-width: 767.98px) {
+  .topbar { display: flex; position: sticky; top: 0; z-index: 1030; align-items: center; gap: .75rem; padding: .5rem 1rem; background: #17324d; color: #fff; }
+  .btn-menu { border: 0; background: transparent; color: #fff; font-size: 1.6rem; line-height: 1; padding: .15rem .4rem; border-radius: .4rem; }
+  .btn-menu:hover, .btn-menu:focus-visible { background: #24507c; }
+  .sidebar { position: fixed; top: 0; bottom: 0; left: 0; z-index: 1045; width: 260px; max-width: 85vw; overflow-y: auto; display: flex; flex-direction: column;
+             transform: translateX(-100%); visibility: hidden; transition: transform .25s ease, visibility 0s linear .25s; }
+  body.menu-ouvert .sidebar { transform: none; visibility: visible; transition-delay: 0s; box-shadow: 4px 0 18px rgba(0, 0, 0, .35); }
+  .menu-fond { position: fixed; inset: 0; z-index: 1040; background: rgba(0, 0, 0, .45); }
+  body.menu-ouvert .menu-fond { display: block; }
+  body.menu-ouvert { overflow: hidden; }
+}
+@media (prefers-reduced-motion: reduce) { .sidebar { transition: none !important; } }
+.sidebar .nav-link { color: #c9d6e2; border-radius: .4rem; }
+.sidebar .nav-link:hover, .sidebar .nav-link.active { background: #24507c; color: #fff; }
+.card { border: 0; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.compteur { font-size: 2rem; font-weight: 700; line-height: 1; }
+.stepper { display: flex; gap: .25rem; flex-wrap: wrap; }
+.stepper .step { flex: 1 1 120px; padding: .6rem .5rem; text-align: center; font-size: .8rem;
+  border-radius: .4rem; background: #e9edf2; color: #6b7a8a; }
+.stepper .step.done { background: #d1e7dd; color: #0f5132; }
+.stepper .step.current { background: #0d6efd; color: #fff; font-weight: 600; }
+.timeline { list-style: none; padding-left: 0; }
+.timeline li { border-left: 3px solid #cfd8e3; padding: 0 0 1rem 1rem; position: relative; }
+.timeline li::before { content: ""; position: absolute; left: -7px; top: 2px; width: 11px; height: 11px;
+  border-radius: 50%; background: #0d6efd; }
+.timeline li.rejet::before { background: #dc3545; }
+.timeline li.correction::before { background: #ffc107; }
+.timeline li.en_attente::before { background: #ffc107; }
+.timeline li.rejetee::before { background: #dc3545; }
+.timeline li.annulee::before { background: #adb5bd; }
+.timeline li.annulee .titre-mutation { text-decoration: line-through; color: #6c757d; }
+.carte-action { transition: box-shadow .15s, transform .15s; }
+.carte-action:hover { box-shadow: 0 4px 12px rgba(0,0,0,.15); transform: translateY(-2px); }
+
+/* ---- arbre de traçabilité ---- */
+.section-etiquette { font-size: .72rem; text-transform: uppercase; letter-spacing: .07em; color: #6c757d; font-weight: 600; margin-bottom: .6rem; }
+.arbre-conteneur { overflow-x: auto; padding: .25rem .1rem .5rem; }
+.arbre, .arbre ul { list-style: none; margin: 0; padding: 0; }
+.arbre ul { margin-left: 1.25rem; padding-left: 1.75rem; border-left: 2px solid #cfd8e3; }
+.arbre li { position: relative; padding: .45rem 0; }
+.arbre ul > li::before { content: ""; position: absolute; left: -1.75rem; top: 1.95rem; width: 1.75rem; border-top: 2px solid #cfd8e3; }
+.arbre ul > li:last-child::after { content: ""; position: absolute; left: calc(-1.75rem - 2px); top: calc(1.95rem + 2px); bottom: 0; width: 4px; background: #fff; }
+.arbre-noeud { display: inline-flex; flex-direction: column; gap: .15rem; padding: .5rem .8rem; border: 1px solid #dde3ea; border-radius: .6rem;
+  background: #fff; text-decoration: none; color: inherit; min-width: 260px; max-width: 100%; transition: box-shadow .12s, border-color .12s; }
+.arbre-noeud:hover { border-color: #0d6efd; box-shadow: 0 2px 8px rgba(13, 110, 253, .15); color: inherit; }
+.arbre-noeud.courant { border: 2px solid #0d6efd; background: #f3f8ff; padding: calc(.5rem - 1px) calc(.8rem - 1px); }
+.arbre-noeud.cloture { background: #f6f7f9; }
+.arbre-noeud.cloture .arbre-prop { color: #6c757d; }
+.arbre-lien { font-size: .72rem; color: #52606d; display: flex; align-items: center; gap: .3rem; }
+.arbre-lien i { color: #0d6efd; }
+.arbre-ligne { display: flex; flex-wrap: wrap; align-items: center; gap: .15rem .6rem; font-size: .9rem; }
+.arbre-prop { color: #0b0b0b; }
+.arbre-ici { font-size: .72rem; font-weight: 700; color: #0d6efd; }
+.arbre-rappel { font-size: .72rem; color: #6c757d; font-style: italic; }
+
+/* Onglets de statut (page « Dossiers ») : à la ligne sur grand écran, défilement horizontal sur téléphone. */
+.onglets-statuts { scrollbar-width: thin; }
+.onglets-statuts .nav-link { padding: .5rem .75rem; }
+@media (min-width: 768px) { .onglets-statuts { flex-wrap: wrap !important; overflow: visible !important; white-space: normal !important; } }

@@ -1,0 +1,661 @@
+{% extends "base.html" %}
+{% block title %}{{ d.numero }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/carte.css') }}">{% endblock %}
+{% block content %}
+{% macro noeud(n) %}
+<li>
+  <a class="arbre-noeud{{ ' courant' if n.courant }}{{ ' cloture' if n.d.statut == C.CLOTURE }}" href="{{ url_for('main.detail_dossier', dossier_id=n.d.id) }}#tracabilite"{{ ' aria-current="true"'|safe if n.courant }}>
+    {% if n.lien %}
+    <span class="arbre-lien"><i class="bi bi-{{ FILIATION.icones[n.lien.type] }}"></i>{{ FILIATION.libelles[n.lien.type] }}{% if n.lien.libelle %} · {{ n.lien.libelle }}{% endif %}{% if n.mutation %} · {{ n.mutation.date_acte.strftime('%d/%m/%Y') }}{% if n.mutation.montant and n.lien.type == 'vente' %} · {{ '{:,}'.format(n.mutation.montant).replace(',', ' ') }} KMF{% endif %}{% endif %}</span>
+    {% endif %}
+    <span class="arbre-ligne">
+      <strong>{{ n.d.numero }}</strong>
+      <span class="arbre-prop">{{ n.proprietaire }}</span>
+      <span class="badge text-bg-{{ STATUT_COULEUR[n.d.statut] }}">{{ n.d.statut_label }}</span>
+      {% if n.courant %}<span class="arbre-ici"><i class="bi bi-geo-alt-fill"></i> Vous êtes ici</span>{% endif %}
+    </span>
+    {% if n.rappel %}<span class="arbre-rappel"><i class="bi bi-arrow-up-right"></i> déjà affiché plus haut (fusion)</span>{% endif %}
+  </a>
+  {% if n.enfants %}<ul>{% for e in n.enfants %}{{ noeud(e) }}{% endfor %}</ul>{% endif %}
+</li>
+{% endmacro %}
+{% macro champ(label, valeur) %}
+  <dt class="col-sm-5 text-muted fw-normal">{{ label }}</dt><dd class="col-sm-7">{{ valeur if valeur else '—' }}</dd>
+{% endmacro %}
+
+<div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+  <div>
+    {% if d.origine == C.ORIGINE_ANCIEN %}<a class="small text-decoration-none" href="{{ url_for('main.liste_anciens') }}">← Anciens dossiers</a>{% else %}<a class="small text-decoration-none" href="{{ url_for('main.liste_dossiers') }}">← Dossiers</a>{% endif %}
+    <h1 class="h3 mb-0">{{ d.numero }}</h1>
+    <span class="badge text-bg-{{ STATUT_COULEUR[d.statut] }}">{{ statut_visible }}</span>
+    {% if d.statut == C.ARCHIVE %}
+      <span class="badge text-bg-light border">Dossier papier numérisé{% if d.reference_archive %} · n° {{ d.reference_archive }}{% endif %}{% if d.annee_archive %} · {{ d.annee_archive }}{% endif %}</span>
+    {% else %}
+      <span class="badge text-bg-light border">Filière {{ 'privée' if d.filiere == 'prive' else 'publique' }}</span>
+    {% endif %}
+  </div>
+  <div class="d-flex gap-2 flex-wrap justify-content-end align-items-start">
+    {% if peut_signaler %}
+    <a class="btn btn-outline-danger" href="{{ url_for('blocages.nouveau', dossier=d.id) }}" title="Bloque le dossier jusqu'à ce que le Directeur lève le blocage"><i class="bi bi-slash-circle me-1"></i>Signaler un problème</a>
+    {% endif %}
+    {% if mode_correction %}
+    <a class="btn btn-outline-secondary" href="{{ url_for('corrections.corriger', dossier_id=d.id) }}"
+       title="{{ 'Corrige immédiatement les données de ce dossier en cours' if mode_correction == 'direct' else 'Propose une correction, à valider par le Directeur' }}"><i class="bi bi-pencil-square me-1"></i>{{ 'Corriger' if mode_correction == 'direct' else 'Demander une correction' }}</a>
+    {% endif %}
+    {% if d.statut == C.ARCHIVE %}
+    {% elif restreint %}
+      <span class="text-muted small">Impression du plan croquis réservée aux services publics.</span>
+    {% elif imprimables %}
+      <div class="d-flex gap-2 flex-wrap justify-content-end">
+        {% for t in imprimables %}
+        <a class="btn btn-outline-primary" href="{{ url_for('main.imprimer', dossier_id=d.id, type_doc=t) }}" target="_blank" rel="noopener">
+          <i class="bi bi-printer me-1"></i>{{ titres_pdf[t] }}
+        </a>
+        {% endfor %}
+      </div>
+    {% elif not imprimable %}
+      <button class="btn btn-outline-secondary" disabled title="Disponible une fois le RTC et le RTS saisis"><i class="bi bi-printer me-1"></i>Impression indisponible (RTC + RTS requis)</button>
+    {% endif %}
+  </div>
+</div>
+
+{% if d.est_bloque %}
+<div class="alert alert-danger" role="alert" id="blocage">
+  <div class="fw-semibold"><i class="bi bi-slash-circle me-1"></i>Dossier bloqué{% if not restreint %} — {{ d.blocages_actifs|length }} problème{{ 's' if d.blocages_actifs|length > 1 }} actif{{ 's' if d.blocages_actifs|length > 1 }}{% endif %}</div>
+  {% if restreint %}
+  <div class="small">Ce dossier est suspendu : aucune action n'est possible pour le moment.</div>
+  {% else %}
+  <div class="small mb-2">Lecture seule : ni circuit, ni mutation, ni correction, ni impression, ni dépôt de document ou de tracé, jusqu'à la levée du blocage par le Directeur, preuve à l'appui.</div>
+  {% for b in d.blocages_actifs %}
+  <div class="bg-white text-body border rounded p-2 mb-2">
+    <span class="badge text-bg-danger">{{ b.type_label }}</span>
+    <span class="small text-muted ms-1">signalé par {{ b.signale_par.nom }} le {{ b.signale_at|dt }}</span>
+    <div class="small mt-1" style="white-space: pre-wrap">{{ b.description }}</div>
+    {% if peut_lever %}{% with depuis = 'dossier' %}{% include "blocages/_lever.html" %}{% endwith %}{% endif %}
+  </div>
+  {% endfor %}
+  {% endif %}
+</div>
+{% endif %}
+
+{% if d.statut == C.CLOTURE %}
+  {% set transferts = d.descendances|selectattr('type', 'in', ['vente', 'donation', 'heritage', 'expropriation'])|list %}
+  {% if transferts %}
+  <div class="alert alert-secondary d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div>
+      <strong><i class="bi bi-{{ FILIATION.icones[transferts[0].type] }} me-1"></i>Propriété transférée ({{ FILIATION.libelles[transferts[0].type]|lower }}).</strong>
+      Ce dossier est conservé comme historique. Le dossier à jour est <a class="fw-semibold" href="{{ url_for('main.detail_dossier', dossier_id=transferts[0].resultat_id) }}">{{ transferts[0].resultat.numero }}</a>.
+    </div>
+    <a class="btn btn-primary btn-sm" href="{{ url_for('main.detail_dossier', dossier_id=transferts[0].resultat_id) }}"><i class="bi bi-box-arrow-up-right me-1"></i>Ouvrir le dossier à jour</a>
+  </div>
+  {% else %}
+  <div class="alert alert-secondary">
+    <strong><i class="bi bi-archive me-1"></i>Parcelle clôturée.</strong> Elle n'existe plus : son historique est conservé mais elle n'est plus modifiable.
+    {% for f in d.descendances %}
+      <div class="small">{{ FILIATION.passe[f.type] }} → <a href="{{ url_for('main.detail_dossier', dossier_id=f.resultat_id) }}">{{ f.resultat.numero }}</a>{% if f.libelle %} ({{ f.libelle }}){% endif %}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+{% endif %}
+{% if d.origines and not restreint %}
+<div class="alert alert-info py-2 small">
+  <i class="bi bi-{{ FILIATION.icones[d.origines[0].type] }} me-1"></i>Dossier issu {{ FILIATION.origine[d.origines[0].type] }}, à partir de :
+  {% for f in d.origines %}<a href="{{ url_for('main.detail_dossier', dossier_id=f.source_id) }}">{{ f.source.numero }}</a>{{ ', ' if not loop.last }}{% endfor %}
+</div>
+{% endif %}
+
+{% if suivi %}
+<div class="card mb-3"><div class="card-body">
+  <div class="stepper">
+    {% for st, libelle, etat in suivi %}
+      <div class="step {{ etat }}">{% if etat == 'done' %}<i class="bi bi-check-lg"></i> {% endif %}{{ libelle }}</div>
+    {% endfor %}
+  </div>
+</div></div>
+{% endif %}
+
+{# --- Actions de l'étape --- #}
+{% if actions %}
+<div class="card mb-3 border-primary"><div class="card-header bg-primary text-white">À faire sur ce dossier</div><div class="card-body">
+  {% if 'terminer_plan' in actions %}
+  <form method="post" action="{{ url_for('main.action_dossier', dossier_id=d.id, action='terminer_plan') }}" class="row g-2">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="col-md-9"><input class="form-control" name="commentaire" placeholder="Commentaire (facultatif)"></div>
+    <div class="col-md-3"><button class="btn btn-primary w-100">Plan croquis terminé</button></div>
+  </form>
+  {% endif %}
+  {% if 'envoyer_avis' in actions %}
+  <form method="post" action="{{ url_for('main.action_dossier', dossier_id=d.id, action='envoyer_avis') }}" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label class="form-label">Votre avis *</label>
+    <textarea class="form-control mb-2" name="commentaire" rows="3" required></textarea>
+    <label class="form-label small mb-1">Documents joints à l'avis (facultatif)</label>
+    <input class="form-control form-control-sm mb-1" type="file" name="pieces_avis" multiple accept=".pdf,.jpg,.jpeg,.png,.tif,.tiff">
+    <div class="form-text mb-2">PDF, JPG, PNG ou TIFF · 5 documents au maximum · {{ config.MAX_FICHIER_MO }} Mo chacun.</div>
+    <div class="alert alert-warning py-2 small">Après l'envoi, vous ne pourrez plus agir sur ce dossier : le topographe public prend le relais.</div>
+    <button class="btn btn-primary">Envoyer l'avis</button>
+  </form>
+  {% endif %}
+  {% if 'saisir_rsp' in actions %}
+  <form method="post" action="{{ url_for('main.action_dossier', dossier_id=d.id, action='saisir_rsp') }}" class="row g-2">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="col-md-9"><input class="form-control" name="valeur" placeholder="Numéro RTC" maxlength="60" required></div>
+    <div class="col-md-3"><button class="btn btn-primary w-100">Enregistrer le RTC</button></div>
+  </form>
+  {% endif %}
+  {% if 'saisir_rcp' in actions %}
+  <form method="post" action="{{ url_for('main.action_dossier', dossier_id=d.id, action='saisir_rcp') }}" class="row g-2 mb-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="col-md-9"><input class="form-control" name="valeur" placeholder="Numéro RTS" maxlength="60" required></div>
+    <div class="col-md-3"><button class="btn btn-primary w-100">Enregistrer le RTS</button></div>
+  </form>
+  {% endif %}
+  {% if 'valider' in actions %}
+  <form method="post" action="{{ url_for('main.action_dossier', dossier_id=d.id, action='valider') }}" class="row g-2 mb-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="col-md-9"><input class="form-control" name="commentaire" placeholder="Commentaire (facultatif)"></div>
+    <div class="col-md-3"><button class="btn btn-success w-100">Valider et émettre</button></div>
+  </form>
+  {% endif %}
+  {% if 'rejeter' in actions %}
+  <form method="post" action="{{ url_for('main.action_dossier', dossier_id=d.id, action='rejeter') }}" class="row g-2"
+        onsubmit="return confirm('Renvoyer le dossier à l\'étape précédente ?')">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="col-md-9"><input class="form-control" name="commentaire" placeholder="Motif du rejet (obligatoire)" required></div>
+    <div class="col-md-3"><button class="btn btn-outline-danger w-100">Rejeter</button></div>
+  </form>
+  {% endif %}
+</div></div>
+{% elif restreint and d.avis_envoye_at %}
+<div class="alert alert-success">Votre avis a été envoyé le {{ d.avis_envoye_at|dt }}. Ce dossier est en lecture seule pour vous.</div>
+{% endif %}
+
+{% if titrage %}
+<div class="card mb-3" id="titrage"><div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <span><i class="bi bi-signpost-split me-1"></i>Titrage</span>
+  {% if titrage.termine %}<span class="badge text-bg-success">Titré</span>{% elif titrage.etape %}<span class="badge text-bg-info">À faire : {{ titrage.libelles[titrage.etape] }} · {{ titrage.acteur }}</span>{% endif %}
+  {% if peut_titrage %}<a class="btn btn-sm btn-outline-primary ms-auto" href="{{ url_for('titrage.fiche', dossier_id=d.id) }}"><i class="bi bi-box-arrow-up-right me-1"></i>Ouvrir le suivi du titrage</a>{% endif %}
+</div><div class="card-body">
+  {% with modifiable = False %}{% include "titrage/_suivi.html" %}{% endwith %}
+</div></div>
+{% endif %}
+
+<div class="row g-3">
+  {% set avec_desc = d.origine == 'nouveau' and (peut_decrire or description) %}
+  {% set cl = 'col-12' if avec_desc else 'col-lg-6' %}
+  {% set hh = '' if avec_desc else 'h-100' %}
+  {% if avec_desc %}<div class="col-lg-6"><div class="row g-3">{% endif %}
+  <div class="{{ cl }}"><div class="card {{ hh }}"><div class="card-header bg-white fw-semibold">{{ 'Propriétaires actuels' if proprietaires|length > 1 else 'Propriétaire' }}</div><div class="card-body">
+    {% for p, part in proprietaires %}
+    <dl class="row mb-0 {{ 'border-bottom pb-2 mb-2' if not loop.last }}">
+      {{ champ('Nom', p.nom_complet ~ (' · ' ~ formater_part(part) if proprietaires|length > 1 else '')) }}
+      {{ champ('Pièce d\'identité', p.identite) }}
+      {{ champ('Téléphone', p.telephone) }}
+      {{ champ('Adresse', p.adresse) }}
+    </dl>
+    <div class="small {{ 'border-bottom pb-2 mb-2' if not loop.last else 'mt-2' }}"><a href="{{ url_for('proprietaires.profil', proprietaire_id=p.id) }}" class="text-decoration-none"><i class="bi bi-person-vcard me-1"></i>Voir le profil et tous les biens</a></div>
+    {% endfor %}
+  </div></div></div>
+  <div class="{{ cl }}"><div class="card {{ hh }}"><div class="card-header bg-white fw-semibold">Parcelle</div><div class="card-body">
+    <dl class="row mb-0">
+      {{ champ('Île', d.parcelle.ile.nom) }}
+      {{ champ('Commune', d.parcelle.commune) }}
+      {{ champ('Village / quartier', d.parcelle.village) }}
+      {{ champ('Référence', d.parcelle.reference) }}
+      {{ champ('Superficie', ('{:,.0f} m²'.format(d.parcelle.superficie_m2).replace(',', ' ')) if d.parcelle.superficie_m2 else None) }}
+      {{ champ('Type de titre', d.parcelle.type_titre) }}
+    </dl>
+  </div></div></div>
+
+  {% if not restreint and d.statut != C.ARCHIVE %}
+  <div class="{{ cl }}"><div class="card {{ hh }}"><div class="card-header bg-white fw-semibold">Numéros</div><div class="card-body">
+    <dl class="row mb-2">
+      {{ champ('RTC (topographie)', d.rsp) }}
+      {{ champ('RTS (Domaine)', d.rcp) }}
+      {{ champ('Validé par', d.valide_par.nom ~ ' le ' ~ (d.valide_at|dt) if d.valide_par else None) }}
+    </dl>
+    {% if corrige_rsp %}
+    <form method="post" action="{{ url_for('main.corriger_dossier', dossier_id=d.id, champ='rsp') }}" class="input-group input-group-sm mb-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input class="form-control" name="valeur" value="{{ d.rsp }}" maxlength="60" required>
+      <button class="btn btn-outline-warning">Corriger le RTC</button>
+    </form>
+    {% endif %}
+    {% if corrige_rcp %}
+    <form method="post" action="{{ url_for('main.corriger_dossier', dossier_id=d.id, champ='rcp') }}" class="input-group input-group-sm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input class="form-control" name="valeur" value="{{ d.rcp }}" maxlength="60" required>
+      <button class="btn btn-outline-warning">Corriger le RTS</button>
+    </form>
+    {% endif %}
+  </div></div></div>
+  {% endif %}
+
+  {% if d.avis %}
+  <div class="{{ cl }}"><div class="card {{ hh }}"><div class="card-header bg-white fw-semibold">Avis du topographe privé</div><div class="card-body">
+    <div class="small text-muted mb-1">{{ d.topographe.nom if d.topographe }} · {{ d.avis_envoye_at|dt }}</div>
+    <div style="white-space: pre-wrap">{{ d.avis }}</div>
+    {% if pieces_avis %}
+    <div class="small fw-semibold mt-3 mb-1">Documents joints</div>
+    {% for doc in pieces_avis %}<div class="small"><a href="{{ url_for('documents.voir', doc_id=doc.id) }}" target="_blank" rel="noopener"><i class="bi bi-paperclip me-1"></i>{{ doc.nom_original }}</a> <span class="text-muted">· {{ doc.created_at|dt }}</span></div>{% endfor %}
+    {% endif %}
+  </div></div></div>
+  {% endif %}
+
+  {% if avec_desc %}</div></div>{% endif %}
+
+  {% if avec_desc %}
+  <div class="col-lg-6" id="description-terrain"><div class="card h-100">
+    <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
+      <span><i class="bi bi-rulers me-1"></i>Description du terrain (plan croquis)</span>
+      {% if peut_decrire %}<button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#form-description" aria-expanded="false" aria-controls="form-description" id="btn-modifier-description"><i class="bi bi-pencil-square me-1"></i>Modifier</button>{% endif %}
+    </div>
+    <div class="card-body">
+      {% if description %}
+      <dl class="row small mb-0">
+        {% for champ, libelle, maxi in champs_description %}{% if description.get(champ) %}
+        <dt class="col-sm-4 text-muted fw-normal">{{ libelle }}</dt><dd class="col-sm-8" style="white-space: pre-wrap">{{ d.date_leve.strftime('%d/%m/%Y') if champ == 'date_leve' else description[champ] }}</dd>
+        {% endif %}{% endfor %}
+      </dl>
+      {% else %}<div class="text-muted small">Aucune information saisie.</div>{% endif %}
+      <div class="small text-muted mt-3">Le nom du topographe et son n° d'agrément viennent de son compte ; les bornes, longueurs, azimuts et parcelles voisines sont calculés à partir du tracé.</div>
+      {% if peut_decrire %}
+      <div class="collapse mt-3" id="form-description">
+        <hr>
+        {% if d.statut == 'certifie' %}<div class="alert alert-warning py-2 small">Le dossier est certifié : toute modification rend « non à jour » les plans croquis déjà imprimés.</div>{% endif %}
+        <form method="post" action="{{ url_for('terrain.enregistrer', dossier_id=d.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          {% with v = valeurs_description %}{% include "dossiers/_description_terrain.html" %}{% endwith %}
+          <button class="btn btn-sm btn-primary mt-3">Enregistrer la description</button>
+          <button class="btn btn-sm btn-link mt-3" type="button" data-bs-toggle="collapse" data-bs-target="#form-description">Annuler</button>
+        </form>
+      </div>
+      <script>
+        window.addEventListener('load', function () {
+          if (new URLSearchParams(location.search).get('modifier') === '1') document.getElementById('btn-modifier-description').click();
+        });
+      </script>
+      {% endif %}
+    </div>
+  </div></div>
+  {% endif %}
+</div>
+
+<div class="row g-3 mt-0">
+  {% if section_documents %}
+  <div class="col-12" id="documents"><div class="card">
+    <div class="card-header bg-white fw-semibold d-flex justify-content-between">
+      <span><i class="bi bi-file-earmark-text me-1"></i>Documents ({{ documents|length + emis|length }})</span>
+    </div>
+    {% if emis or (d.origine != C.ORIGINE_ANCIEN and manquants) %}
+    <div class="card-body border-bottom py-3">
+      <div class="fw-semibold mb-1"><i class="bi bi-qr-code me-1"></i>Générés par le système <span class="badge text-bg-light border">{{ emis|length }}</span></div>
+      <div class="small text-muted mb-2">Ces documents sont générés automatiquement par le système : les documents du dossier dès qu'il est certifié, et l'acte de chaque mutation (vente, donation, héritage, expropriation, hypothèque, mainlevée) dès qu'elle est validée. Chaque exemplaire a son numéro et son QR code, et reste consultable tel qu'il a été généré.</div>
+      {% if manquants and peut_generer %}
+      <div class="alert alert-warning py-2 small d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <span><i class="bi bi-exclamation-triangle me-1"></i>Document{{ 's' if manquants|length > 1 }} manquant{{ 's' if manquants|length > 1 }} : {% for t in manquants %}{{ titres_pdf[t] }}{{ ', ' if not loop.last }}{% endfor %}.</span>
+        <form method="post" action="{{ url_for('main.generer_documents_manquants', dossier_id=d.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-sm btn-warning"><i class="bi bi-file-earmark-plus me-1"></i>Générer les documents manquants</button>
+        </form>
+      </div>
+      {% endif %}
+    <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+      <thead class="table-light"><tr><th>Document</th><th>Copie</th><th>Imprimé</th><th>Code</th><th>Vérif.</th><th>État</th><th></th></tr></thead>
+      <tbody>
+      {% for r, etat, code in emis %}
+        <tr>
+          <td>{{ titres_pdf.get(r.type, r.type) }}{% if r.mutation %}<div class="small text-muted">Mutation n° {{ r.mutation.seq }}{% if r.dossier_id != d.id %} · dossier {{ r.dossier.numero }}{% endif %}</div>{% endif %}</td>
+          <td>n° {{ r.copie_n }}</td>
+          <td class="small text-muted">{{ r.emis_at|dt }} · {{ r.emis_par.nom }}</td>
+          <td><a class="font-monospace small" href="{{ url_for('verif.page', code=r.code) }}" target="_blank" rel="noopener">{{ code[:14] }}…</a></td>
+          <td class="small text-muted">{{ r.nb_verifications }}</td>
+          <td>
+            {% if etat == 'valide' %}<span class="badge text-bg-success">Valide</span>
+            {% elif etat == 'revoque' %}<span class="badge text-bg-danger" title="{{ r.revoque_motif }}">Révoqué</span>
+            {% elif etat == 'cloture' %}<span class="badge text-bg-secondary" title="La parcelle a été divisée ou fusionnée">Parcelle clôturée</span>
+            {% elif etat == 'obsolete' %}<span class="badge text-bg-warning" title="Le dossier a changé depuis l'impression">Non à jour</span>
+            {% else %}<span class="badge text-bg-dark">Altéré</span>{% endif %}
+          </td>
+          <td class="text-end text-nowrap">
+            {% if r.pdf_cle %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.exemplaire_pdf', rec_id=r.id) }}" target="_blank" rel="noopener" title="Rouvrir cet exemplaire tel qu'il a été imprimé"><i class="bi bi-file-earmark-pdf me-1"></i>Ouvrir</a>
+            {% else %}<span class="small text-muted" title="Imprimé avant l'archivage des documents">non archivé</span>{% endif %}
+            {% if peut_revoquer and not r.revoque_at %}
+            <form method="post" action="{{ url_for('verif.revoquer', rec_id=r.id) }}" class="d-inline"
+                  onsubmit="var m = prompt('Motif de la révocation (obligatoire) :'); if (!m) return false; this.motif.value = m; return true;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="motif">
+              <button class="btn btn-sm btn-outline-danger">Révoquer</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    </div>
+    <div class="px-3 pt-3 pb-1 fw-semibold"><i class="bi bi-paperclip me-1"></i>Documents ajoutés <span class="badge text-bg-light border">{{ documents|length }}</span></div>
+    {% endif %}
+    {% if documents %}
+    <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+      <thead class="table-light"><tr><th>Fichier</th><th>Document</th><th>Taille</th><th>Ajouté par</th><th></th></tr></thead>
+      <tbody>
+      {% for doc in documents %}
+        <tr>
+          <td><i class="bi bi-{{ 'file-earmark-pdf' if doc.mime == 'application/pdf' else 'file-earmark-image' }} me-1"></i>
+            <a href="{{ url_for('documents.voir', doc_id=doc.id) }}" target="_blank" rel="noopener" class="text-decoration-none">{{ doc.nom_original }}</a></td>
+          <td>{{ doc.intitule }}{% if doc.mutation_id %} <span class="badge text-bg-light border">Mutation</span>{% endif %}</td>
+          <td class="text-muted small">{{ '%.1f'|format(doc.taille / 1048576) }} Mo</td>
+          <td class="small text-muted">{{ doc.uploaded_by.nom }} · {{ doc.created_at|dt }}</td>
+          <td class="text-end text-nowrap">
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('documents.voir', doc_id=doc.id, telecharger=1) }}" title="Télécharger"><i class="bi bi-download"></i></a>
+            {% if peut_retirer %}
+            <form method="post" action="{{ url_for('documents.retirer', doc_id=doc.id) }}" class="d-inline"
+                  onsubmit="var m = prompt('Motif du retrait (obligatoire) :'); if (!m) return false; this.motif.value = m; return true;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="motif">
+              <button class="btn btn-sm btn-outline-danger" title="Retirer"><i class="bi bi-trash"></i></button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}
+    <div class="card-body text-muted">Aucun document.</div>
+    {% endif %}
+    {% if peut_televerser %}
+    <div class="card-footer bg-white">
+      <form method="post" action="{{ url_for('documents.televerser', dossier_id=d.id) }}" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {% if d.origine == C.ORIGINE_ANCIEN %}
+        <div class="small text-muted mb-2">Ajouter des documents <span class="text-muted">(déposez chaque document sur sa ligne · PDF, JPG, PNG ou TIFF · 25 Mo maximum chacun)</span></div>
+        {% else %}
+        <div class="small text-muted mb-2">Ajouter un document <span class="text-muted">(PDF, JPG, PNG ou TIFF · 25 Mo maximum)</span></div>
+        {% endif %}
+        {% with avec_types = d.origine == C.ORIGINE_ANCIEN %}{% include "dossiers/_lignes_documents.html" %}{% endwith %}
+        <button class="btn btn-primary btn-sm mt-3"><i class="bi bi-upload me-1"></i>Enregistrer les documents</button>
+      </form>
+    </div>
+    {% endif %}
+  </div></div>
+  {% endif %}
+
+  <div class="col-12" id="carte"><div class="card">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <span class="fw-semibold"><i class="bi bi-geo-alt me-1"></i>Localisation et tracé</span>
+      {% if carte.g %}
+      <span class="d-flex gap-2 flex-wrap">
+      <a class="btn btn-sm btn-primary" href="{{ url_for('carte.google_earth', dossier_id=d.id) }}"
+         title="Télécharge un fichier KML : il s'ouvre dans Google Earth avec le contour jaune de la parcelle, déjà cadré">
+        <i class="bi bi-globe-americas me-1"></i>Ouvrir dans Google Earth avec le tracé
+      </a>
+      <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener noreferrer"
+         href="https://www.google.com/maps/@?api=1&amp;map_action=map&amp;center={{ '%.6f'|format(carte.g.centre_lat) }},{{ '%.6f'|format(carte.g.centre_lon) }}&amp;zoom=20&amp;basemap=satellite"
+         title="Ouvre Google Maps (satellite) centré sur la parcelle, dans un nouvel onglet">
+        <i class="bi bi-google me-1"></i>Google Maps (position)
+      </a>
+      <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener noreferrer"
+         href="https://earth.google.com/web/@{{ '%.6f'|format(carte.g.centre_lat) }},{{ '%.6f'|format(carte.g.centre_lon) }},0a,250d,35y,0h,0t,0r"
+         title="Ouvre Google Earth (web) sur la parcelle, dans un nouvel onglet">
+        <i class="bi bi-globe me-1"></i>Earth web (position)
+      </a>
+      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('carte.telecharger', dossier_id=d.id, version=carte.g.version) }}"
+         title="Le fichier tel qu'il a été envoyé par le topographe">
+        <i class="bi bi-download me-1"></i>Fichier d'origine ({{ carte.g.nom_original.rsplit('.', 1)[-1]|upper }})
+      </a>
+      </span>
+      {% endif %}
+    </div>
+    <div class="card-body">
+      {% if carte.g %}
+        {% set voisins = carte.donnees.voisins.features %}
+        <div class="row g-3">
+          <div class="col-lg-8">
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+            <div class="carte-zone" id="zone-carte-dossier">
+              <div id="carte-dossier" style="height: 420px;" class="border"></div>
+              <div class="carte-mesure" id="mesure-dossier" role="status"></div>
+            </div>
+            <div class="small text-muted mt-1">Pour voir le contour sur l'imagerie Google : « Ouvrir dans Google Earth avec le tracé » télécharge un fichier à ouvrir par double-clic (Google Earth installé) ou à importer dans Google Earth web (menu Projets → importer un fichier KML). Les boutons « position » ouvrent seulement la zone, sans le contour.</div>
+            <div class="small text-muted mt-1 d-flex flex-wrap gap-3">
+              <span><span class="pastille-carte" style="--c: {{ carte.donnees.couleur }}"></span> cette parcelle ({{ carte.donnees.statut }})</span>
+              {% if voisins %}<span><span class="pastille-carte" style="--c: #dc3545"></span> parcelles qui la chevauchent</span>{% endif %}
+            </div>
+          </div>
+          <div class="col-lg-4">
+            <dl class="row mb-2">
+              <dt class="col-6 text-muted fw-normal">Superficie mesurée</dt><dd class="col-6 fw-semibold">{{ '{:,.0f}'.format(carte.g.superficie_m2).replace(',', ' ') }} m²</dd>
+              <dt class="col-6 text-muted fw-normal">Périmètre</dt><dd class="col-6">{{ '{:,.0f}'.format(carte.g.perimetre_m).replace(',', ' ') }} m</dd>
+              <dt class="col-6 text-muted fw-normal">Superficie déclarée</dt><dd class="col-6">{{ ('{:,.0f} m²'.format(carte.declaree).replace(',', ' ')) if carte.declaree else '—' }}</dd>
+              <dt class="col-6 text-muted fw-normal">Version du tracé</dt><dd class="col-6">v{{ carte.g.version }}</dd>
+            </dl>
+            {% if carte.ecart_notable %}
+            <div class="alert alert-warning py-2 small">La superficie mesurée diffère de la superficie déclarée de <strong>{{ '%+.1f'|format(carte.ecart_pct) }} %</strong>.</div>
+            {% endif %}
+            {% if voisins %}
+            <div class="alert alert-danger py-2 small">
+              <strong><i class="bi bi-exclamation-triangle me-1"></i>Chevauchement détecté</strong>
+              <ul class="mb-0 ps-3">
+                {% for f in voisins %}
+                <li>
+                  {% if f.properties.numero %}<a href="{{ f.properties.url }}">{{ f.properties.numero }}</a>{% else %}une parcelle d'un autre dossier{% endif %}
+                  : {{ '{:,.0f}'.format(f.properties.aire_m2).replace(',', ' ') }} m² ({{ f.properties.pct }} % de la plus petite)
+                </li>
+                {% endfor %}
+              </ul>
+            </div>
+            {% else %}
+            <div class="small text-success"><i class="bi bi-check-circle me-1"></i>Aucun chevauchement avec les autres parcelles.</div>
+            {% endif %}
+          </div>
+        </div>
+        <script type="application/json" id="donnees-carte">{{ carte.donnees|tojson }}</script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+        {% if GOOGLE_CLE %}
+        <script src="https://maps.googleapis.com/maps/api/js?key={{ GOOGLE_CLE }}&amp;language=fr"></script>
+        <script src="https://unpkg.com/leaflet.gridlayer.googlemutant@0.14.1/dist/Leaflet.GoogleMutant.js"></script>
+        {% endif %}
+        <script src="{{ url_for('static', filename='js/carte_outils.js') }}"></script>
+        <script>
+        (function () {
+          var data = JSON.parse(document.getElementById('donnees-carte').textContent);
+          var carte = L.map('carte-dossier', {scrollWheelZoom: false, maxZoom: 19});
+          SIGFCarte.fonds(carte, data.tuiles);                      // mêmes fonds, même échelle et mêmes outils que la carte des parcelles
+          var c = data.couleur;
+          var voisins = L.geoJSON(data.voisins, {
+            style: {color: '#dc3545', weight: 2, fillColor: '#dc3545', fillOpacity: 0.3, dashArray: '6 4'},
+            onEachFeature: function (f, couche) {
+              var p = f.properties, div = document.createElement('div');
+              if (p.url) { var a = document.createElement('a'); a.href = p.url; a.textContent = p.numero; div.appendChild(a); }
+              else { div.textContent = 'Parcelle d\'un autre dossier'; }
+              couche.bindPopup(div);
+            }
+          }).addTo(carte);
+          var parcelle = L.geoJSON(data.parcelle, {style: {color: '#ffffff', weight: 4, fillColor: c, fillOpacity: 0.5}}).addTo(carte);
+          function recadrer() { carte.fitBounds(parcelle.getBounds(), {maxZoom: 19, padding: [24, 24]}); }
+          SIGFCarte.outils(carte, {zone: document.getElementById('zone-carte-dossier'), mesure: document.getElementById('mesure-dossier'), recadrer: recadrer, titreRecadrer: 'Recadrer sur la parcelle'});
+          recadrer();
+          carte.on('click', function () { carte.scrollWheelZoom.enable(); });
+        })();
+        </script>
+      {% else %}
+        <div class="text-muted mb-2">Aucun tracé enregistré pour ce dossier.</div>
+      {% endif %}
+
+      {% if carte.peut_gerer %}
+      <form method="post" action="{{ url_for('carte.televerser', dossier_id=d.id) }}" enctype="multipart/form-data" class="row g-2 align-items-end {{ 'mt-3 pt-3 border-top' if carte.g }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="col-md-5"><label class="form-label small mb-0">{{ 'Remplacer le tracé' if carte.g else 'Importer le tracé' }} (.kmz ou .kml · 10 Mo max)</label>
+          <input class="form-control form-control-sm" type="file" name="fichier" accept=".kmz,.kml" required></div>
+        {% if carte.g %}
+        <div class="col-md-5"><label class="form-label small mb-0">Motif du remplacement *</label>
+          <input class="form-control form-control-sm" name="motif" maxlength="500" required placeholder="Ex. : bornage rectifié sur le terrain"></div>
+        {% endif %}
+        <div class="col-md-2"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-upload me-1"></i>Envoyer</button></div>
+        {% if not carte.g %}<div class="col-12 small text-muted">Dessinez le contour de la parcelle dans Google Earth (polygone), puis enregistrez-le en KMZ ou KML. Pour le plan croquis, vous pouvez ajouter dans le même fichier des lignes nommées (routes, canaux), des points nommés (tourelle, fontaine) et des polygones dont le nom commence par « Annexe » (bâtiment, plantation) : ils seront dessinés avec leur nom.</div>{% endif %}
+      </form>
+      {% endif %}
+
+      {% if carte.versions|length > 1 %}
+      <details class="mt-3"><summary class="small text-muted">Historique des tracés ({{ carte.versions|length }} versions)</summary>
+        <ul class="small mt-2 mb-0">
+        {% for v in carte.versions %}
+          <li>v{{ v.version }} · {{ '{:,.0f}'.format(v.superficie_m2).replace(',', ' ') }} m² · {{ v.created_at|dt }} · {{ v.uploaded_by.nom }}
+            {% if v.motif_remplacement %}· <em>{{ v.motif_remplacement }}</em>{% endif %}
+            {% if v.remplace_at %}<span class="badge text-bg-secondary">remplacée</span>{% else %}<span class="badge text-bg-success">en vigueur</span>{% endif %}
+            · <a href="{{ url_for('carte.telecharger', dossier_id=d.id, version=v.version) }}">fichier</a></li>
+        {% endfor %}
+        </ul>
+      </details>
+      {% endif %}
+    </div>
+  </div></div>
+
+  {% if trace %}
+  <div class="col-12" id="tracabilite"><div class="card">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <span class="fw-semibold"><i class="bi bi-diagram-3 me-1"></i>Traçabilité du terrain</span>
+      <span class="d-flex align-items-center gap-2">
+        {% if trace.historique %}
+          {% if trace.integre %}<span class="badge text-bg-success" title="Chaque mutation est chaînée à la précédente par une empreinte signée"><i class="bi bi-shield-check me-1"></i>Historique intact</span>
+          {% else %}<span class="badge text-bg-danger"><i class="bi bi-shield-exclamation me-1"></i>Historique ALTÉRÉ à partir de la mutation n° {{ trace.defaut }}</span>{% endif %}
+        {% endif %}
+        {% if trace.peut_saisir %}
+        <a class="btn btn-sm btn-primary" href="{{ url_for('mutations.nouvelle', dossier_id=d.id) }}"><i class="bi bi-plus-lg me-1"></i>Nouvelle mutation</a>
+        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('partages.division', dossier_id=d.id) }}"><i class="bi bi-diagram-2 me-1"></i>Diviser</a>
+        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('partages.fusion', dossier_id=d.id) }}"><i class="bi bi-intersect me-1"></i>Fusionner</a>
+        {% endif %}
+      </span>
+    </div>
+    <div class="card-body">
+      {% if not trace.integre %}
+      <div class="alert alert-danger">L'historique de ce dossier ne correspond plus à ses empreintes. Les validations sont bloquées : contactez l'administrateur.</div>
+      {% endif %}
+      {% if trace.etat.charges %}
+      <div class="alert alert-warning py-2">
+        <strong>Charges actives :</strong>
+        {% for c in trace.etat.charges %}
+          Hypothèque{% if c.montant %} de {{ '{:,}'.format(c.montant).replace(',', ' ') }} KMF{% endif %}{% for p in c.parties %}{% if p.role == 'creancier' %} au profit de {{ p.proprietaire.nom_complet }}{% endif %}{% endfor %}{{ ' ; ' if not loop.last }}
+        {% endfor %}
+      </div>
+      {% endif %}
+      <div class="arbre-zone mb-4">
+        <div class="section-etiquette"><i class="bi bi-diagram-3 me-1"></i>Arbre de la parcelle</div>
+        <div class="arbre-conteneur">
+          <ul class="arbre">{% for n in trace.arbre.racines %}{{ noeud(n) }}{% endfor %}</ul>
+        </div>
+        {% if trace.a_histoire %}
+        <div class="small text-muted mt-2">Chaque ligne est un dossier ; le trait indique ce qui l'a créé (vente, donation, héritage, division, fusion). Cliquez pour l'ouvrir.</div>
+        {% else %}
+        <div class="small text-muted mt-2">Cette parcelle n'a encore connu aucun transfert, division ni fusion.</div>
+        {% endif %}
+        {% if trace.arbre.tronque %}<div class="small text-warning mt-1">Arbre partiel : trop de dossiers liés pour tous les afficher.</div>{% endif %}
+      </div>
+      <div class="section-etiquette"><i class="bi bi-clock-history me-1"></i>Historique de ce dossier</div>
+      {% if trace.historique %}
+      <ul class="timeline mb-0">
+        {% for h in trace.historique %}{% set m = h.m %}
+        <li class="{{ 'annulee' if h.annulee else m.statut }}">
+          <div class="d-flex justify-content-between flex-wrap gap-1">
+            <div>
+              <span class="fw-semibold titre-mutation">{{ h.libelle }}{% if m.seq %} · n° {{ m.seq }}{% endif %}</span>
+              {% if h.annulee %}<span class="badge text-bg-secondary">Annulée</span>
+              {% elif m.statut == 'validee' %}<span class="badge text-bg-success">Validée</span>
+              {% elif m.statut == 'en_attente' %}<span class="badge text-bg-warning">En attente de validation</span>
+              {% else %}<span class="badge text-bg-danger">Rejetée</span>{% endif %}
+            </div>
+            <div class="small text-muted">Acte du {{ m.date_acte.strftime('%d/%m/%Y') }}{% if m.reference_acte %} · {{ m.reference_acte }}{% endif %}</div>
+          </div>
+          {% if h.cedants or h.beneficiaires %}
+          <div class="small mt-1">
+            {% for nom, part in h.cedants %}<span class="text-danger">{{ nom }} cède {{ part }}</span>{{ ' ; ' if not loop.last }}{% endfor %}
+            {% if h.cedants and h.beneficiaires %} <i class="bi bi-arrow-right mx-1"></i> {% endif %}
+            {% for nom, part in h.beneficiaires %}<span class="text-success">{{ nom }} reçoit {{ part }}</span>{{ ' ; ' if not loop.last }}{% endfor %}
+          </div>
+          {% endif %}
+          {% if h.issues %}
+          <div class="small mt-1"><i class="bi bi-{{ FILIATION.icones[m.type] }} me-1"></i>{{ 'Parcelles créées' if m.type == 'division' else ('Nouveau dossier' if m.type in ('vente', 'donation', 'heritage', 'expropriation') else 'Nouvelle parcelle') }} :
+            {% for lib, r in h.issues %}<a href="{{ url_for('main.detail_dossier', dossier_id=r.id) }}">{{ r.numero }}</a>{% if lib %} ({{ lib }}){% endif %}{{ ', ' if not loop.last }}{% endfor %}
+          </div>
+          {% endif %}
+          {% if h.creanciers %}<div class="small mt-1">Créancier : {% for nom, _ in h.creanciers %}{{ nom }}{% endfor %}</div>{% endif %}
+          {% if m.montant %}<div class="small">Montant : {{ '{:,}'.format(m.montant).replace(',', ' ') }} KMF</div>{% endif %}
+          {% if h.cible %}<div class="small text-muted">Concerne : {{ trace.types[h.cible.type] }}{% if h.cible.seq %} n° {{ h.cible.seq }}{% endif %}</div>{% endif %}
+          {% if h.corrections %}
+          <div class="small mt-2"><table class="table table-sm table-borderless mb-1 w-auto">
+            {% for c in h.corrections %}
+            <tr><td class="text-muted pe-3">{{ c.groupe }} · {{ c.champ }}</td><td><span class="text-danger text-decoration-line-through">{{ c.avant }}</span> <i class="bi bi-arrow-right mx-1"></i> <span class="text-success fw-semibold">{{ c.apres }}</span></td></tr>
+            {% endfor %}
+          </table></div>
+          {% if m.notes %}<div class="small text-muted">Motif : {{ m.notes }}</div>{% endif %}
+          {% elif m.notes %}<div class="small mt-1" style="white-space: pre-wrap">{{ m.notes }}</div>{% endif %}
+          {% if m.documents %}<div class="small mt-1"><i class="bi bi-paperclip"></i> {{ m.documents|selectattr('retire_at', 'none')|list|length }} justificatif(s) joint(s) (voir Documents)</div>{% endif %}
+          {% if m.statut == 'validee' and m.type in C.ACTES and not h.annulee and trace.peut_acte and current_user.role in (C.ADMIN, C.DIRECTEUR, C.DOMAINE) %}
+          <div class="mt-2"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('mutations.acte', mutation_id=m.id) }}" target="_blank" rel="noopener"
+             title="{{ 'Ouvre l\'acte généré par le système, prêt à imprimer' if trace.actes.get(m.id) else 'Génère l\'acte de cette mutation, prêt à imprimer' }}"><i class="bi bi-printer me-1"></i>{{ C.ACTES[m.type][1] }}</a></div>
+          {% endif %}
+          <div class="small text-muted mt-1">
+            Saisi par {{ m.saisi_par.nom }} le {{ m.saisi_at|dt }}
+            {% if m.statut == 'validee' %} · validé par {{ m.decision_par.nom }} le {{ m.decision_at|dt }} · <span class="font-monospace" title="Empreinte signée : {{ m.hash }}">{{ m.hash[:12] }}…</span>{% endif %}
+            {% if m.statut == 'rejetee' %} · rejeté par {{ m.decision_par.nom }} : <em>{{ m.motif_rejet }}</em>{% endif %}
+          </div>
+          {% if m.statut == 'en_attente' and trace.peut_decider %}
+          <div class="d-flex gap-2 mt-2 flex-wrap">
+            {% if m.saisi_par_id != current_user.id %}
+            <form method="post" action="{{ url_for('mutations.valider_route', mutation_id=m.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-sm btn-success">Valider</button>
+            </form>
+            {% endif %}
+            <form method="post" action="{{ url_for('mutations.rejeter_route', mutation_id=m.id) }}" class="d-flex gap-2"
+                  onsubmit="var x = prompt('Motif du rejet (obligatoire) :'); if (!x) return false; this.motif.value = x; return true;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="motif">
+              <button class="btn btn-sm btn-outline-danger">Rejeter</button>
+            </form>
+          </div>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="text-muted">Aucune mutation enregistrée sur ce dossier{% if d.origines %} depuis sa création{% else %} : le propriétaire est celui d'origine{% endif %}.</div>
+      {% endif %}
+    </div>
+  </div></div>
+  {% endif %}
+
+
+  {% if not restreint %}
+  {% if not restreint and d.blocages %}
+  <div class="col-12"><div class="card"><div class="card-header bg-white fw-semibold"><i class="bi bi-slash-circle me-1"></i>Historique des blocages</div>
+    <ul class="list-group list-group-flush">
+    {% for b in d.blocages|reverse %}
+      <li class="list-group-item">
+        <span class="badge text-bg-{{ 'danger' if b.actif else 'secondary' }}">{{ 'Actif' if b.actif else 'Levé' }}</span> <strong>{{ b.type_label }}</strong>
+        <div class="small text-muted">Signalé par {{ b.signale_par.nom }} le {{ b.signale_at|dt }}</div>
+        <div class="small" style="white-space: pre-wrap">{{ b.description }}</div>
+        {% if not b.actif %}<div class="small mt-1 border-start border-3 border-success ps-2">Levé par {{ b.leve_par.nom }} le {{ b.leve_at|dt }} — <span style="white-space: pre-wrap">{{ b.motif_levee }}</span>
+          {% if b.preuve %} · <a href="{{ url_for('documents.voir', doc_id=b.preuve.id) }}" target="_blank" rel="noopener"><i class="bi bi-paperclip"></i>{{ b.preuve.nom_original }}</a>{% endif %}</div>{% endif %}
+      </li>
+    {% endfor %}
+    </ul></div></div>
+  {% endif %}
+
+  <div class="col-12"><div class="card"><div class="card-header bg-white fw-semibold">Historique du circuit</div><div class="card-body">
+    <ul class="timeline mb-0">
+      {% for e in d.etapes|reverse %}
+      <li class="{{ e.type }}">
+        <div class="fw-semibold">
+          {% if e.type == 'rejet' %}Rejeté → {{ STATUTS[e.vers_statut] }}
+          {% elif e.type == 'correction' %}Correction
+          {% else %}{{ STATUTS[e.vers_statut] }}{% endif %}
+        </div>
+        <div class="small text-muted">{{ e.user.nom }} ({{ e.user.role_label }}) · {{ e.created_at|dt }}</div>
+        {% if e.commentaire %}<div class="small mt-1">{{ e.commentaire }}</div>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div></div></div>
+  {% endif %}
+</div>
+{% endblock %}

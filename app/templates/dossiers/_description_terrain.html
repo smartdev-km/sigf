@@ -1,0 +1,21 @@
+{# Champs de la description du terrain (plan croquis). Reçoit `v` : dictionnaire champ → texte. #}
+<div class="row g-2">
+  {% for champ, libelle, maxi in champs_description %}
+  <div class="{{ 'col-12' if champ in ('observations_plan', 'usage_terrain', 'acces_terrain') else 'col-md-6' }}">
+    <label class="form-label small mb-1" for="f_{{ champ }}">{{ libelle }}</label>
+    {% if champ == 'nature_terrain' %}
+    <select class="form-select form-select-sm" id="f_{{ champ }}" name="{{ champ }}"><option value="">—</option>
+      {% for n in natures_terrain %}<option {{ 'selected' if v.get(champ) == n }}>{{ n }}</option>{% endfor %}</select>
+    {% elif champ == 'mode_leve' %}
+    <select class="form-select form-select-sm" id="f_{{ champ }}" name="{{ champ }}"><option value="">—</option>
+      {% for n in modes_leve %}<option {{ 'selected' if v.get(champ) == n }}>{{ n }}</option>{% endfor %}</select>
+    {% elif champ == 'date_leve' %}
+    <input type="date" class="form-control form-control-sm" id="f_{{ champ }}" name="{{ champ }}" value="{{ v.get(champ, '') }}">
+    {% elif champ == 'observations_plan' %}
+    <textarea class="form-control form-control-sm" id="f_{{ champ }}" name="{{ champ }}" rows="3" maxlength="{{ maxi }}">{{ v.get(champ, '') }}</textarea>
+    {% else %}
+    <input class="form-control form-control-sm" id="f_{{ champ }}" name="{{ champ }}" maxlength="{{ maxi }}" value="{{ v.get(champ, '') }}">
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>

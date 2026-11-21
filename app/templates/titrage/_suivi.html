@@ -1,0 +1,46 @@
+{# Barre des étapes, formulaires (si `modifiable`) et historique du titrage. Reçoit `titrage`, `d`, `modifiable`. #}
+  <div class="d-flex flex-wrap gap-2 mb-3">
+    {% for etape, libelle, etat, fait in titrage.suivi %}
+    <div class="flex-fill border rounded p-2 {{ 'bg-success-subtle' if etat == 'done' else 'border-primary bg-primary-subtle' if etat == 'current' else 'bg-light text-muted' }}" style="min-width: 10rem">
+      <div class="small fw-semibold">{% if etat == 'done' %}<i class="bi bi-check-lg me-1"></i>{% endif %}{{ loop.index }}. {{ libelle }}</div>
+      <div class="small text-muted">{{ C.ROLES[C.TITRAGE_ACTEUR[etape]] }}</div>
+      {% if fait %}<div class="small">{{ fait.reference }}{% if fait.date_etape %} · {{ fait.date_etape.strftime('%d/%m/%Y') }}{% endif %}</div>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% if modifiable and titrage.peut_agir and titrage.champs %}
+  <form method="post" action="{{ url_for('titrage.route_avancer', dossier_id=d.id) }}" enctype="multipart/form-data" class="border rounded p-3 mb-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="fw-semibold mb-2">Enregistrer l'étape « {{ titrage.libelles[titrage.etape] }} »</div>
+    <div class="row g-2">
+      <div class="col-md-5"><label class="form-label small mb-1">{{ titrage.champs[0] }} *</label><input class="form-control form-control-sm" name="reference" maxlength="120" required></div>
+      <div class="col-md-3"><label class="form-label small mb-1">{{ titrage.champs[1] }} *</label><input type="date" class="form-control form-control-sm" name="date_etape" required></div>
+      <div class="col-md-4"><label class="form-label small mb-1">Observations</label><input class="form-control form-control-sm" name="observations" maxlength="1000"></div>
+      {% for type_doc in titrage.champs[2] %}
+      <div class="col-md-6"><label class="form-label small mb-1">{{ type_doc }} (scan, facultatif)</label><input type="file" class="form-control form-control-sm" name="fichier_{{ loop.index0 }}" accept=".pdf,.jpg,.jpeg,.png,.tif,.tiff"></div>
+      {% endfor %}
+    </div>
+    <button class="btn btn-sm btn-primary mt-3">Valider l'étape</button>
+  </form>
+  {% endif %}
+  {% if modifiable and titrage.peut_retourner %}
+  <form method="post" action="{{ url_for('titrage.route_retour', dossier_id=d.id) }}" class="input-group input-group-sm mb-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input class="form-control" name="motif" placeholder="Motif pour renvoyer le dossier à l'étape précédente" maxlength="1000" required>
+    <button class="btn btn-outline-danger">Renvoyer à l'étape précédente</button>
+  </form>
+  {% endif %}
+  {% if titrage.historique %}
+  <div class="small fw-semibold mb-1">Historique</div>
+  <div class="table-responsive"><table class="table table-sm align-middle mb-0 small">
+    <thead class="table-light"><tr><th>Étape</th><th>Référence</th><th>Date</th><th>Par</th><th>Enregistré le</th><th>Observations</th></tr></thead>
+    <tbody>
+    {% for e in titrage.historique %}
+      <tr class="{{ 'text-decoration-line-through text-muted' if e.annule_at }}">
+        <td>{{ titrage.libelles[e.etape] }}{% if e.type == 'retour' %} <span class="badge text-bg-warning">Retour</span>{% endif %}{% if e.annule_at %} <span class="badge text-bg-secondary">Annulée</span>{% endif %}</td>
+        <td>{{ e.reference or '—' }}</td><td>{{ e.date_etape.strftime('%d/%m/%Y') if e.date_etape else '—' }}</td>
+        <td>{{ e.user.nom }}</td><td>{{ e.created_at|dt }}</td><td style="white-space: pre-wrap">{{ e.observations or '' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody></table></div>
+  {% endif %}

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Modifier {{ p.nom_complet }}{% endblock %}
+{% block content %}
+<nav class="small mb-2"><a href="{{ url_for('proprietaires.profil', proprietaire_id=p.id) }}" class="text-decoration-none"><i class="bi bi-arrow-left me-1"></i>{{ p.nom_complet }}</a></nav>
+<h1 class="h3 mb-1">Modifier les informations de {{ p.nom_complet }}</h1>
+<div class="text-muted small mb-3">La demande doit être validée par le Directeur. Tant qu'elle n'est pas validée, rien ne change.</div>
+
+{% if erreur %}<div class="alert alert-danger">{{ erreur }}</div>{% endif %}
+{% if demandes %}<div class="alert alert-warning">Une demande est déjà en attente pour cette personne : vous ne pouvez pas en déposer une autre avant la décision du Directeur.</div>{% endif %}
+
+<form method="post" class="card card-body mb-3">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="row g-3">
+    {% for champ, libelle in champs %}
+    <div class="col-md-6"><label class="form-label">{{ libelle }}{% if champ in ('nom', 'identite') %} *{% endif %}</label>
+      <input class="form-control" name="{{ champ }}" maxlength="{{ 255 if champ == 'adresse' else 120 if champ in ('nom', 'prenom') else 80 }}" value="{{ v.get(champ) or '' }}" {{ 'required' if champ in ('nom', 'identite') }}></div>
+    {% endfor %}
+    <div class="col-12"><label class="form-label">Motif de la modification *</label>
+      <textarea class="form-control" name="motif" rows="2" maxlength="500" required>{{ v.get('motif', '') if v.get('motif') is not none else '' }}</textarea>
+      <div class="form-text">Par exemple : faute de frappe constatée sur la CNI, nouveau numéro de téléphone…</div></div>
+  </div>
+  {% if fiches|length > 1 %}<div class="small text-muted mt-3"><i class="bi bi-info-circle me-1"></i>{{ fiches|length }} fiches désignent cette personne : à la validation, les valeurs saisies seront appliquées à toutes.</div>{% endif %}
+  <div class="mt-3 d-flex gap-2">
+    <button class="btn btn-primary" {{ 'disabled' if demandes }}>Envoyer au Directeur</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('proprietaires.profil', proprietaire_id=p.id) }}">Annuler</a>
+  </div>
+</form>
+{% endblock %}

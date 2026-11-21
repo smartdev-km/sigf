@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Bienvenue{% endblock %}
+{% block head %}
+<style>
+  .accueil-hero { background: linear-gradient(135deg, #17324d 0%, #24507c 100%); color: #fff; border-radius: .75rem; padding: 2rem 1.75rem; }
+  .accueil-hero h1 { font-size: clamp(1.4rem, 3.2vw, 2.1rem); line-height: 1.25; }
+  .accueil-hero .sous-titre { color: #c9d6e2; }
+  .accueil-hero .pastille { background: rgba(255, 255, 255, .14); border-radius: 2rem; padding: .25rem .75rem; font-size: .85rem; display: inline-flex; gap: .4rem; align-items: center; color: #fff; text-decoration: none; }
+  .accueil-hero a.pastille:hover { background: rgba(255, 255, 255, .24); }
+  .acces { display: flex; gap: .85rem; align-items: flex-start; height: 100%; padding: 1rem; color: inherit; text-decoration: none; border-radius: .6rem; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .08); transition: box-shadow .15s, transform .15s; }
+  .acces:hover, .acces:focus-visible { box-shadow: 0 4px 14px rgba(23, 50, 77, .18); transform: translateY(-2px); color: inherit; }
+  .acces .icone { flex: none; width: 2.6rem; height: 2.6rem; display: flex; align-items: center; justify-content: center; border-radius: .6rem; background: #e7f0fb; color: #0d6efd; font-size: 1.3rem; }
+  .acces .titre { font-weight: 600; }
+  .acces .texte { font-size: .85rem; color: #6c757d; }
+  @media (prefers-reduced-motion: reduce) { .acces { transition: none; } .acces:hover { transform: none; } }
+</style>
+{% endblock %}
+{% block content %}
+<section class="accueil-hero mb-4">
+  <div class="sous-titre small text-uppercase fw-semibold mb-2"><i class="bi bi-geo-alt-fill me-1"></i>République · Comores</div>
+  <h1 class="fw-bold mb-2">Bienvenue dans le Système Intégré de Gestion Foncière</h1>
+  <p class="sous-titre mb-3">Bonjour <strong class="text-white">{{ current_user.nom }}</strong>. Retrouvez ici vos accès rapides pour commencer votre journée.</p>
+  <div class="d-flex flex-wrap gap-2 mb-4">
+    <span class="pastille"><i class="bi bi-person-badge"></i>{{ current_user.role_label }}</span>
+    <span class="pastille"><i class="bi bi-geo-alt"></i>{{ ile.nom if ile else 'Toutes les îles' }}</span>
+    {% if a_traiter %}<a class="pastille" href="{{ lien_a_traiter|default(url_for('main.dashboard') ~ '#a-traiter') }}"><i class="bi bi-list-check"></i>{{ a_traiter }} dossier{{ 's' if a_traiter > 1 }} à traiter</a>{% endif %}
+  </div>
+  {% if current_user.role == C.FONCTION_PUBLIQUE %}
+  <a class="btn btn-light btn-lg fw-semibold" href="{{ url_for('titrage.page') }}"><i class="bi bi-signpost-split me-2"></i>Ouvrir le titrage<i class="bi bi-arrow-right ms-2 d-none d-sm-inline"></i></a>
+  {% else %}
+  <a class="btn btn-light btn-lg fw-semibold" href="{{ url_for('main.dashboard') }}"><i class="bi bi-speedometer2 me-2"></i>Ouvrir le tableau de bord<i class="bi bi-arrow-right ms-2 d-none d-sm-inline"></i></a>
+  {% endif %}
+</section>
+
+<h2 class="h6 text-muted text-uppercase mb-3">Accès rapides</h2>
+<div class="row g-3 row-cols-1 row-cols-sm-2 row-cols-xl-3">
+  {% for titre, texte, icone, url, badge, _principal in acces %}
+  <div class="col"><a class="acces" href="{{ url }}">
+    <span class="icone"><i class="bi bi-{{ icone }}"></i></span>
+    <span class="flex-grow-1"><span class="titre d-block">{{ titre }}</span><span class="texte d-block">{{ texte }}</span></span>
+    {% if badge %}<span class="badge text-bg-warning align-self-center" title="À traiter">{{ badge }}</span>{% endif %}
+  </a></div>
+  {% endfor %}
+</div>
+{% endblock %}
