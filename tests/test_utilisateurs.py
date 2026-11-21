@@ -500,6 +500,9 @@ def test_sur_render_sans_base_postgresql_on_refuse_sqlite(monkeypatch):
     monkeypatch.delenv("DATABASE_URL", raising=False)
     with pytest.raises(RuntimeError, match="DATABASE_URL"):
         config._database_uri()
+    monkeypatch.setenv("ALLOW_SQLITE", "1")                                # essai assumé : SQLite temporaire autorisé
+    assert config._database_uri().startswith("sqlite")
+    monkeypatch.delenv("ALLOW_SQLITE")
     monkeypatch.setenv("DATABASE_URL", "postgres://u:p@h/db")
     assert config._database_uri().startswith("postgresql://")
     monkeypatch.delenv("RENDER")
