@@ -1,4 +1,4 @@
-"""Plan croquis : bornes en UTM 38 Sud, côtés, azimuts, parcelles voisines, description du terrain saisie par le topographe."""
+"""Plan croquis : bornes et côtés (calcul), parcelles voisines, description du terrain saisie par le topographe."""
 
 import math
 import re
@@ -112,8 +112,8 @@ def test_pdf_contient_bornes_limitrophes_et_voisins(app, login):
         "date_leve": "2026-01-15", "mode_leve": "GPS", "observations_plan": "Borne 2 à replacer"})
     assert r.status_code == 302
     texte = texte_pdf(dire.get(f"/dossiers/{did}/imprimer/plan_croquis"))
-    assert "Bornes, côtés et orientations" in texte and "UTM fuseau 38 Sud" in texte
-    assert "Périmètre" in texte and "<b>" not in texte
+    assert "Bornes, côtés et orientations" not in texte and "UTM fuseau" not in texte               # pas de tableau des bornes sur le plan
+    assert "Périmètre (tracé)" in texte and "<b>" not in texte
     assert "Route nationale" in texte and "Ravin" in texte and "Terrain nu" in texte
     assert "15/01/2026" in texte and "GPS" in texte and "Borne 2 à replacer" in texte
     assert "Topographe" in texte and "pub" in texte and "AG-77" in texte                # pris dans le compte du topographe
@@ -132,7 +132,7 @@ def test_pdf_sans_voisin_ni_trace(app, login):
     assert "Bornes, côtés" not in texte_pdf(rep) and "Limitrophes" in texte_pdf(rep)
 
 
-def test_pdf_tableau_limite_pour_un_contour_tres_detaille(app, login):
+def test_pdf_contour_tres_detaille_sans_tableau_des_bornes(app, login):
     pub, dom, dire = login("pub"), login("dom"), login("dir")
     n = 80
     pts = [(LON + dlon(30) * math.cos(2 * math.pi * i / n), LAT + 30 / 110574.0 * math.sin(2 * math.pi * i / n)) for i in range(n)]
@@ -140,7 +140,24 @@ def test_pdf_tableau_limite_pour_un_contour_tres_detaille(app, login):
     did = _dossier_trace(pub, kml(pts))
     _pret(pub, dom, did)
     rep = dire.get(f"/dossiers/{did}/imprimer/plan_croquis")
-    assert rep.status_code == 200 and "limité aux 60 premières bornes" in texte_pdf(rep)
+    texte = texte_pdf(rep)
+    assert rep.status_code == 200 and "Bornes, côtés" not in texte and "premières bornes" not in texte and len(PdfReader(BytesIO(rep.data)).pages) == 1
+
+
+def test_le_croquis_occupe_toute_la_hauteur_de_la_colonne(app, login):
+    """Sans tableau des bornes, le dessin prend toute la hauteur disponible (environ 23 cm sur la feuille A3)."""
+    from app import pdf as Pdf
+
+    pub = login("pub")
+    did = _dossier_trace(pub, kml(points(LON, LAT, 60, 40)))
+    with app.app_context():
+        from reportlab.lib.units import cm
+
+        d = db.session.get(Dossier, did)
+        corps = Pdf._plan_croquis(d)[-1]                                          # tableau à deux colonnes + écart
+        gauche = corps._cellvalues[0][0]                                          # KeepInFrame de gauche
+        cadre = gauche._content[0]
+        assert cadre.height > 22 * cm and cadre.width == Pdf.LARGEUR_GAUCHE
 
 
 # ------------------------------------------------------------------ formulaire : droits, validation, audit
@@ -376,7 +393,7 @@ def test_bouton_modifier_et_disposition_de_la_fiche(app, login):
 # ------------------------------------------------------------------ feuille A3 unique
 def test_plan_croquis_tient_sur_une_feuille_a3_paysage(app, login):
     pub, dom, dire = login("pub"), login("dom"), login("dir")
-    n = 70                                                                          # contour très détaillé : 60 bornes au tableau
+    n = 70                                                                          # contour très détaillé (70 sommets)
     pts = [(LON + dlon(40) * math.cos(2 * math.pi * i / n), LAT + 40 / 110574.0 * math.sin(2 * math.pi * i / n)) for i in range(n)]
     pts.append(pts[0])
     did = _dossier_trace(pub, kml(pts))

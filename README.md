@@ -83,10 +83,10 @@ profil utilisateur, gestion des comptes.
 Après la certification, le dossier entre en **titrage** : Journal officiel (Fonction publique) → Plan de bornage (Domaine) →
 Journal de clôture (Fonction publique) → Titré (Domaine). Chaque étape enregistre sa preuve (n° de parution / de procès-verbal / de
 titre, date, scans facultatifs) ; l'acteur d'une étape peut renvoyer le dossier à l'étape précédente avec un motif. Le statut reste
-« Certificat émis » (les mutations restent possibles) ; seuls les dossiers certifiés après la mise en place du titrage y entrent.
+« Certificat émis » (les mutations restent possibles) ; tout dossier « Certificat émis » y entre (y compris ceux issus d'une vente ou d'un héritage, et ceux certifiés avant la mise en place du titrage, repris par migration).
 Depuis les étapes du titrage, on peut **bloquer le dossier** (signaler un problème) tant qu'il n'est pas titré ; un dossier titré ne peut plus être bloqué.
-La page **Titrage** (menu) suit les dossiers par étape (Journal officiel, Plan de bornage, Journal de clôture, À titrer, Titrés), met en avant ceux qui
-revient au compte connecté et affiche le délai passé dans l'étape. Un clic sur un dossier ouvre son **suivi de titrage** (étapes, saisie, historique, scans), page indépendante de la fiche complète ; la Fonction publique n'a accès qu'à cette page. `TITRAGE_DELAI_BORNAGE_JOURS` impose, si besoin, un délai minimal entre le Journal officiel et le bornage.
+La page **Titrage** (menu) est réservée à l'administrateur, au Directeur, au Domaine et à la Fonction publique (pas aux topographes) ; suit les dossiers par étape (Journal officiel, Plan de bornage, Journal de clôture, À titrer, Titrés), met en avant ceux qui
+revient au compte connecté et affiche le délai passé dans l'étape. À l'étape **Plan de bornage**, le Domaine dépose le **tracé de bornage** (KMZ/KML, versionné) ; une fois l'étape validée, le **Plan de bornage** s'imprime (feuille A3 comme le plan croquis, bornes numérotées et longueurs des côtés sur le dessin, avec le procès-verbal). Un clic sur un dossier ouvre son **suivi de titrage** (étapes, saisie, historique, scans), page indépendante de la fiche complète ; la Fonction publique n'a accès qu'à cette page. `TITRAGE_DELAI_BORNAGE_JOURS` impose, si besoin, un délai minimal entre le Journal officiel et le bornage.
 
 Règles transversales :
 

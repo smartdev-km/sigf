@@ -402,6 +402,35 @@ class DocumentEmis(db.Model):
     revoque_par = db.relationship("User", foreign_keys=[revoque_par_id])
 
 
+class Bornage(db.Model):
+    """Tracé de BORNAGE d'un dossier (KMZ/KML déposé à l'étape « Plan de bornage » du titrage). Versionné comme le tracé de la parcelle :
+    jamais écrasé, remplacé avec un motif ; le fichier d'origine est conservé. Les bornes sont les sommets du contour."""
+
+    __tablename__ = "bornages"
+    __table_args__ = (db.UniqueConstraint("dossier_id", "version", name="uq_bornage_dossier_version"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    dossier_id = db.Column(db.Integer, db.ForeignKey("dossiers.id"), nullable=False, index=True)
+    version = db.Column(db.Integer, nullable=False)
+    geojson = db.Column(db.Text, nullable=False)
+    empreinte = db.Column(db.String(64), nullable=False)
+    superficie_m2 = db.Column(db.Float, nullable=False)
+    perimetre_m = db.Column(db.Float, nullable=False)
+    elements_json = db.Column(db.Text)               # repères nommés du fichier (lignes, points, zones annexes)
+    cle = db.Column(db.String(255), unique=True, nullable=False)
+    nom_original = db.Column(db.String(255), nullable=False)
+    mime = db.Column(db.String(80), nullable=False)
+    taille = db.Column(db.Integer, nullable=False)
+    sha256 = db.Column(db.String(64), nullable=False)
+    uploaded_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=maintenant)
+    remplace_at = db.Column(db.DateTime, index=True)
+    motif_remplacement = db.Column(db.Text)
+
+    dossier = db.relationship("Dossier", backref=db.backref("bornages", order_by="Bornage.version"))
+    uploaded_by = db.relationship("User")
+
+
 class EtapeTitrage(db.Model):
     """Étape du titrage accomplie (journal officiel, bornage, journal de clôture, titre) ou retour en arrière. Jamais supprimée."""
 

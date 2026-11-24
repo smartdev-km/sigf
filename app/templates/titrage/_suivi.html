@@ -16,6 +16,9 @@
       <div class="col-md-5"><label class="form-label small mb-1">{{ titrage.champs[0] }} *</label><input class="form-control form-control-sm" name="reference" maxlength="120" required></div>
       <div class="col-md-3"><label class="form-label small mb-1">{{ titrage.champs[1] }} *</label><input type="date" class="form-control form-control-sm" name="date_etape" required></div>
       <div class="col-md-4"><label class="form-label small mb-1">Observations</label><input class="form-control form-control-sm" name="observations" maxlength="1000"></div>
+      {% if titrage.etape == 'plan_bornage' %}
+      <div class="col-md-6"><label class="form-label small mb-1">Tracé de bornage (.kmz ou .kml, facultatif ici : il peut aussi être déposé ensuite)</label><input type="file" class="form-control form-control-sm" name="fichier_bornage" accept=".kmz,.kml"></div>
+      {% endif %}
       {% for type_doc in titrage.champs[2] %}
       <div class="col-md-6"><label class="form-label small mb-1">{{ type_doc }} (scan, facultatif)</label><input type="file" class="form-control form-control-sm" name="fichier_{{ loop.index0 }}" accept=".pdf,.jpg,.jpeg,.png,.tif,.tiff"></div>
       {% endfor %}

@@ -54,7 +54,7 @@
         <td class="text-nowrap"><a href="{{ url_for('main.detail_dossier', dossier_id=d.id) }}" class="fw-semibold text-decoration-none">{{ d.numero }}</a>{% if d.id in bloques %} <span class="badge text-bg-danger" title="Dossier bloqué : problème signalé"><i class="bi bi-slash-circle"></i> Bloqué</span>{% endif %}</td>
         <td>{{ d.proprietaire_label }}</td>
         <td>{{ d.parcelle.ile.nom }} · {{ d.parcelle.commune }}</td>
-        <td><span class="badge text-bg-{{ STATUT_COULEUR[d.statut] }}">{{ statut_affiche(d, current_user) }}</span>{% if d.statut == 'certifie' and d.etape_titre and current_user.role != C.TOPO_PRIVE %}<div class="small text-muted mt-1"><i class="bi bi-signpost-split me-1"></i>{{ titrage_libelle(d) }}</div>{% endif %}</td>
+        <td><span class="badge text-bg-{{ STATUT_COULEUR[d.statut] }}">{{ statut_affiche(d, current_user) }}</span>{% if d.statut == 'certifie' and d.etape_titre and titrage_libelle %}<div class="small text-muted mt-1"><i class="bi bi-signpost-split me-1"></i>{{ titrage_libelle(d) }}</div>{% endif %}</td>
         <td class="text-muted small text-nowrap">{{ d.created_at|dt }}</td>
       </tr>
     {% else %}

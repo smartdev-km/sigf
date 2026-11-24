@@ -65,6 +65,9 @@ def creer_successeur(m, user, d):
     db.session.add(s)
     db.session.flush()
     s.numero = f"SIGF-{date.today().year}-{s.id:05d}"
+    from . import titrage
+
+    titrage.entrer_en_titrage(s, user)                 # un dossier « Certificat émis » est suivi dans « Titrage »
     for pid, num, den in parts:
         s.parts_initiales.append(PartInitiale(proprietaire_id=pid, part_num=num, part_den=den))
     # type « derive » : ce n'est ni un certificat émis par le circuit, ni une création ordinaire (statistiques)

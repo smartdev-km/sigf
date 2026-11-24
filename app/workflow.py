@@ -222,6 +222,10 @@ def documents_imprimables(d, user):
         out.append("plan_croquis")
     if d.statut == C.CERTIFIE and user.role != C.TOPO_PUBLIC:
         out += ["certificat", "extrait", "attestation"]
+    from . import bornage
+
+    if bornage.peut_imprimer(d, user):
+        out.append("bornage")
     return out
 
 

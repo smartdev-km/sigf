@@ -119,6 +119,15 @@ def donnees(d, type_doc):
         description = terrain.description(d)
         if description:
             donnees_doc["description"] = description
+    if type_doc == "bornage":
+        # Le plan de bornage porte le tracé de bornage et le procès-verbal : tout changement (tracé remplacé, étape refaite) le rend « non à jour ».
+        from . import bornage as Bo
+
+        b = Bo.courant(d)
+        pv = Bo.proces_verbal(d)
+        donnees_doc["bornage"] = b.empreinte[:16] if b else None
+        donnees_doc["superficie_bornee_m2"] = round(b.superficie_m2) if b else None
+        donnees_doc["pv"] = [pv.reference, pv.date_etape.isoformat() if pv.date_etape else None] if pv else None
     if type_doc == "extrait":
         # L'extrait porte les charges et l'historique des mutations : toute hypothèque, mutation ou correction validée
         # après son impression le rend « non à jour » (la tête de la chaîne signée change).

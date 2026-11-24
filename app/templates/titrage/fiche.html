@@ -56,6 +56,39 @@
   {% with modifiable = True %}{% include "titrage/_suivi.html" %}{% endwith %}
 </div></div>
 
+{% if bornage.visible %}
+<div class="card mb-3" id="bornage"><div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <span><i class="bi bi-rulers me-1"></i>Tracé de bornage</span>
+  {% if bornage.peut_imprimer %}<a class="btn btn-sm btn-primary" href="{{ url_for('main.imprimer', dossier_id=d.id, type_doc='bornage') }}" target="_blank" rel="noopener"><i class="bi bi-printer me-1"></i>Imprimer le plan de bornage</a>
+  {% elif bornage.courant and not bornage.etape_faite %}<span class="small text-muted">Imprimable une fois l'étape « Plan de bornage » validée</span>{% endif %}
+</div><div class="card-body">
+  {% if bornage.courant %}
+  {% set b = bornage.courant %}
+  <dl class="row small mb-2">
+    <dt class="col-sm-3 text-muted fw-normal">Fichier</dt><dd class="col-sm-9"><a href="{{ url_for('bornage.telecharger', dossier_id=d.id, version=b.version) }}">{{ b.nom_original }}</a> · version {{ b.version }} · déposé par {{ b.uploaded_by.nom }} le {{ b.created_at|dt }}</dd>
+    <dt class="col-sm-3 text-muted fw-normal">Mesures</dt><dd class="col-sm-9">{{ '{:,.0f}'.format(b.superficie_m2).replace(',', ' ') }} m² · périmètre {{ '{:,.1f}'.format(b.perimetre_m).replace(',', ' ') }} m · {{ bornage.nb_bornes }} bornes</dd>
+    {% if bornage.ecart is not none %}<dt class="col-sm-3 text-muted fw-normal">Plan croquis</dt><dd class="col-sm-9">{{ '%+.1f'|format(bornage.ecart) }} % de superficie par rapport au plan croquis{% if bornage.recoupe is false %} <span class="badge text-bg-warning">ne recoupe pas le plan croquis</span>{% endif %}</dd>{% endif %}
+  </dl>
+  {% else %}
+  <div class="small text-muted mb-2">Aucun tracé de bornage déposé pour l'instant.</div>
+  {% endif %}
+  {% if bornage.peut_deposer %}
+  <form method="post" action="{{ url_for('bornage.route_deposer', dossier_id=d.id) }}" enctype="multipart/form-data" class="row g-2 align-items-end">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="col-md-5"><label class="form-label small mb-1">{{ 'Remplacer le tracé de bornage' if bornage.courant else 'Déposer le tracé de bornage' }} (.kmz ou .kml · 10 Mo max) *</label>
+      <input class="form-control form-control-sm" type="file" name="fichier" accept=".kmz,.kml" required></div>
+    {% if bornage.courant %}<div class="col-md-5"><label class="form-label small mb-1">Motif du remplacement *</label><input class="form-control form-control-sm" name="motif" maxlength="500" required></div>{% endif %}
+    <div class="col-md-2"><button class="btn btn-sm btn-outline-primary w-100">Enregistrer</button></div>
+    <div class="col-12 small text-muted">Les bornes sont les sommets du contour. Ajoutez au besoin des lignes, points ou zones « Annexe » nommés : ils seront dessinés sur le plan de bornage.</div>
+  </form>
+  {% endif %}
+  {% if bornage.versions|length > 1 %}
+  <div class="small fw-semibold mt-3 mb-1">Versions</div>
+  {% for v in bornage.versions %}<div class="small {{ 'text-muted' if v.remplace_at }}">v{{ v.version }} · {{ v.nom_original }} · {{ v.created_at|dt }}{% if v.motif_remplacement %} · motif : {{ v.motif_remplacement }}{% endif %}{% if v.remplace_at %} · remplacée{% endif %}</div>{% endfor %}
+  {% endif %}
+</div></div>
+{% endif %}
+
 <div class="row g-3">
   <div class="col-lg-6"><div class="card h-100"><div class="card-header bg-white fw-semibold">Le dossier</div><div class="card-body">
     <dl class="row small mb-0">

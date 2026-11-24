@@ -362,7 +362,7 @@ def test_plan_croquis_dessine_le_trace_a_l_echelle(app, login):
     televerser(pub, did, kml(points(LON, LAT, 100, 70)))                            # 100 m x 70 m
     reponse = dire.get(f"/dossiers/{did}/imprimer/plan_croquis")
     avec = texte(reponse)
-    assert "Échelle : 1/1000" in avec and "échelle 1/1000" in avec
+    assert "Échelle : 1/500" in avec and "échelle 1/500" in avec
     assert re.search(r"Superficie mesurée : 7 0\d\d m²", re.sub(r"[\u202f\xa0]", " ", avec))
     assert len(reponse.data) > len(dire.get(f"/dossiers/{did}/imprimer/attestation").data) * 0.3
 

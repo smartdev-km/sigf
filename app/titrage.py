@@ -14,6 +14,7 @@ from flask_login import current_user, login_required
 
 from . import constants as C
 from . import documents as Doc
+from . import geo
 from . import workflow as W
 from .audit import audit
 from .extensions import db
@@ -179,6 +180,12 @@ def avancer(d, user, form, files, cles_ecrites):
     fichiers = _fichiers(etape, files)
     if fichiers:
         Doc.enregistrer(d, fichiers, None, user, cles_ecrites)
+    if etape == C.TIT_BORNAGE:                       # tracé de bornage (KMZ/KML), facultatif à ce moment : il peut aussi être déposé ensuite
+        fichier_bornage = files.get("fichier_bornage")
+        if fichier_bornage and fichier_bornage.filename:
+            from . import bornage as Bo
+
+            Bo.deposer(d, user, fichier_bornage, form.get("motif_bornage"), cles_ecrites)
     db.session.add(EtapeTitrage(dossier=d, etape=etape, type="fait", reference=reference, date_etape=jour, observations=observations, user_id=user.id))
     suivante = C.ETAPES_TITRAGE.index(etape) + 1
     d.etape_titre = C.ETAPES_TITRAGE[suivante] if suivante < len(C.ETAPES_TITRAGE) else C.TIT_FIN
@@ -227,7 +234,7 @@ def route_avancer(dossier_id):
         etape = avancer(d, current_user, request.form, request.files, cles)
         db.session.commit()
         flash(f"Étape « {C.TITRAGE_LIBELLES[etape]} » enregistrée." + (" Le titrage est terminé : le dossier est titré." if d.etape_titre == C.TIT_FIN else ""), "success")
-    except (TitrageError, Doc.DocumentError, StorageError) as e:
+    except (TitrageError, Doc.DocumentError, StorageError, geo.GeoError) as e:
         db.session.rollback()
         Doc.nettoyer(cles)
         flash(str(e), "danger")
@@ -258,8 +265,8 @@ def route_retour(dossier_id):
 # Page « Titrage » : suivi des quatre étapes
 # --------------------------------------------------------------------------
 def peut_consulter(user):
-    """Le topographe privé ne voit que ses dossiers jusqu'à son avis : il n'a pas accès au suivi du titrage."""
-    return user.role != C.TOPO_PRIVE
+    """Accès à la page « Titrage » : administrateur, Directeur, Domaine et Fonction publique. Les topographes (public et privé) n'y ont pas accès."""
+    return user.role in (C.ADMIN, C.DIRECTEUR, C.DOMAINE, C.FONCTION_PUBLIQUE)
 
 
 def _de_titrage(user):
@@ -368,9 +375,24 @@ def fiche(dossier_id):
     types_titrage = {t for _, _, types in C.TITRAGE_CHAMPS.values() for t in types}
     scans = [x for x in d.documents if x.retire_at is None and x.type in types_titrage]
     emis = DocumentEmis.query.filter(DocumentEmis.dossier_id == d.id, DocumentEmis.pdf_cle.isnot(None), DocumentEmis.revoque_at.is_(None)).order_by(DocumentEmis.id.desc()).all()
+    from . import bornage as Bo
+
+    b = Bo.courant(d)
+    ecart, recoupe = Bo.ecart_avec_plan_croquis(d, b) if b else (None, None)
     return render_template(
         "titrage/fiche.html",
         d=d,
+        bornage={
+            "visible": d.etape_titre in (*Bo.ETAPES_DEPOT, C.TIT_FIN),
+            "courant": b,
+            "versions": list(reversed(d.bornages)),
+            "peut_deposer": Bo.peut_deposer(d, current_user),
+            "peut_imprimer": "bornage" in W.documents_imprimables(d, current_user),
+            "etape_faite": Bo.etape_faite(d),
+            "nb_bornes": Bo._nb_bornes(b) if b else 0,
+            "ecart": ecart,
+            "recoupe": recoupe,
+        },
         titrage=contexte(d, current_user),
         scans=scans,
         emis=emis,

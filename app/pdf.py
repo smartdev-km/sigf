@@ -28,6 +28,7 @@ GRIS = colors.HexColor("#6b7a8a")
 
 TITRES = {
     "plan_croquis": "Plan croquis",
+    "bornage": "Plan de bornage",
     "certificat": "Certificat de propriété",
     "extrait": "Extrait du dossier foncier",
     "attestation": "Attestation",
@@ -136,8 +137,9 @@ def mise_en_page_croquis(g, largeur, hauteur, voisins=()):
 class CadreCroquis(Flowable):
     """Zone de dessin du croquis : tracé de la parcelle à l'échelle, barre d'échelle, flèche du Nord."""
 
-    def __init__(self, largeur, hauteur, g=None, voisins=()):
+    def __init__(self, largeur, hauteur, g=None, voisins=(), libelle_superficie="Superficie mesurée"):
         super().__init__()
+        self.libelle_superficie = libelle_superficie
         self.width, self.height = largeur, hauteur
         self.g = g
         self.plan = mise_en_page_croquis(g, largeur, hauteur, voisins)
@@ -333,7 +335,7 @@ class CadreCroquis(Flowable):
         c.drawString(x0 + L + 4, y0 - 2.5, f"{longueur_m} m   (échelle 1/{p['n']})")
         if self.g:
             c.setFont("Helvetica-Bold", 8)
-            c.drawRightString(self.width - 0.4 * cm, 0.35 * cm, f"Superficie mesurée : {self.g.superficie_m2:,.0f} m²".replace(",", " "))
+            c.drawRightString(self.width - 0.4 * cm, 0.35 * cm, f"{self.libelle_superficie} : {self.g.superficie_m2:,.0f} m²".replace(",", " "))
 
     def draw(self):
         c = self.canv
@@ -521,9 +523,6 @@ MARGES_PLAN = {"gauche": 1.5 * cm, "droite": 1.5 * cm, "haut": 1.4 * cm, "bas": 
 LARGEUR_GAUCHE, ECART, LARGEUR_DROITE = 24 * cm, 0.8 * cm, 14.2 * cm
 HAUTEUR_ENTETE_PLAN = 2.6 * cm
 HAUTEUR_SIGNATURES = 5.4 * cm
-MAX_BORNES_TABLEAU = 60
-LIGNES_PAR_TABLEAU_MAX = 12                    # au-delà, les bornes sont réparties sur deux tableaux côte à côte
-HAUTEUR_LIGNE_BORNES = 0.5 * cm
 
 
 def _fmt(v, n=2):
@@ -552,39 +551,6 @@ def _titre_section(titre, sous_titre=None):
     return elements
 
 
-def _tables_bornes(g):
-    """Bornes (UTM 38 Sud), côtés, longueurs et azimuts. Retourne (éléments, hauteur estimée en points)."""
-    parties = geo.bornes(geo.depuis_geojson(g.geojson))
-    lignes, total = [], 0.0
-    for partie in parties:
-        total += partie["perimetre_m"]
-        for b, c in zip(partie["bornes"], partie["cotes"]):
-            lignes.append([
-                _p(str(b["n"]), S_CELLULE_GRAS), _p(_fmt(b["est"])), _p(_fmt(b["nord"])),
-                _p(f"{c['de']} – {c['vers']}"), _p(_fmt(c["longueur_m"]) + " m"), _p(_fmt(c["azimut"], 1) + "°"),
-            ])
-    if not lignes:
-        return [], 0
-    tronque = len(lignes) > MAX_BORNES_TABLEAU
-    lignes = lignes[:MAX_BORNES_TABLEAU]
-    entetes = ["Borne", "Est (m)", "Nord (m)", "Côté", "Longueur", "Azimut"]
-    largeurs = [1.2, 2.6, 2.9, 1.7, 1.9, 1.5]                       # 11,8 cm
-    moitie = -(-len(lignes) // 2) if len(lignes) > LIGNES_PAR_TABLEAU_MAX else len(lignes)
-    blocs = [lignes[:moitie]] + ([lignes[moitie:]] if lignes[moitie:] else [])
-    tableaux = [_tableau(entetes, bloc, largeurs) for bloc in blocs]
-    rangee = Table([[tableaux[0], "", tableaux[1] if len(tableaux) > 1 else ""]], colWidths=[11.8 * cm, 0.4 * cm, 11.8 * cm])
-    rangee.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-                                ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0)]))
-    pied = f"Périmètre : <b>{_t(_fmt(total))} m</b>" + (f" &nbsp;·&nbsp; tableau limité aux {MAX_BORNES_TABLEAU} premières bornes" if tronque else "")
-    elements = [
-        Paragraph(_t("Bornes, côtés et orientations"), S_SECTION),
-        Paragraph(_t("Coordonnées en UTM fuseau 38 Sud (WGS 84) ; azimuts depuis le Nord, en degrés"), S_CELLULE_MUTE),
-        Spacer(1, 3), rangee, Spacer(1, 3), Paragraph(pied, S_CELLULE),
-    ]
-    hauteur = 1.3 * cm + (moitie + 1) * HAUTEUR_LIGNE_BORNES + 0.9 * cm
-    return elements, hauteur
-
-
 def _colonne_droite(d, g):
     """Fiche du dossier, limitrophes, voisins détectés, description du terrain, levé, observations."""
     from . import carte, terrain
@@ -593,6 +559,7 @@ def _colonne_droite(d, g):
     if g:
         lignes = [("Superficie déclarée", v) if k == "Superficie" else (k, v) for k, v in lignes]
         lignes.insert(6, ("Superficie mesurée (tracé)", f"{g.superficie_m2:,.0f} m²".replace(",", " ")))
+        lignes.insert(7, ("Périmètre (tracé)", f"{_fmt(g.perimetre_m)} m"))
     elements = [_fiche(lignes, marge=2.2, largeurs=(4.4, 9.8))]
 
     elements += _titre_section("Limitrophes", "Indiqués par le topographe")
@@ -626,12 +593,12 @@ def _colonne_droite(d, g):
     return elements
 
 
-def _entete_plan(d, echelle=None):
+def _entete_plan(d, echelle=None, titre="PLAN CROQUIS"):
     cfg = current_app.config
     gauche = [Paragraph(_t(cfg["ENTETE_PAYS"]), _style("pays_g", fontName="Helvetica-Bold", fontSize=13, textColor=BLEU)),
               Paragraph(_t(cfg["ENTETE_DEVISE"]), _style("devise_g", fontSize=8.5, textColor=GRIS)),
               Spacer(1, 3), Paragraph(_t(f"{d.parcelle.ile.nom}  -  {cfg['ENTETE_SERVICE']}"), _style("service_g", fontSize=9.5))]
-    centre = [Paragraph(_t("PLAN CROQUIS"), _style("titre_a3", alignment=TA_CENTER, fontName="Helvetica-Bold", fontSize=24, leading=28, textColor=BLEU)),
+    centre = [Paragraph(_t(titre), _style("titre_a3", alignment=TA_CENTER, fontName="Helvetica-Bold", fontSize=24, leading=28, textColor=BLEU)),
               Paragraph(_t(f"Dossier n° {d.numero}"), _style("num_a3", alignment=TA_CENTER, fontSize=11, textColor=GRIS))]
     droite = [Paragraph(_t(f"Échelle : 1/{echelle}" if echelle else "Échelle : 1/ ________"), _style("ech_d", alignment=2, fontName="Helvetica-Bold", fontSize=14, leading=18)),
               Paragraph(_t(f"{d.parcelle.commune}" + (f" · {d.parcelle.village}" if d.parcelle.village else "")), _style("com_d", alignment=2, fontSize=9, textColor=GRIS))]
@@ -642,18 +609,14 @@ def _entete_plan(d, echelle=None):
 
 
 def _plan_croquis(d, qr=None, user=None):
-    """Une seule feuille A3 paysage : le croquis à gauche (grand), les bornes sous le croquis, toutes les informations à droite,
+    """Une seule feuille A3 paysage : le croquis à gauche (sur toute la hauteur), toutes les informations à droite,
     signatures et QR code en bas à droite. Le contenu se réduit au besoin pour ne jamais déborder."""
     g = d.geometrie_courante
     hauteur_corps = PAGE_PLAN[1] - MARGES_PLAN["haut"] - MARGES_PLAN["bas"] - HAUTEUR_ENTETE_PLAN - 0.9 * cm
 
-    bornes, hauteur_bornes = _tables_bornes(g) if g else ([], 0)
-    hauteur_cadre = max(hauteur_corps - hauteur_bornes - 0.8 * cm, 11 * cm) if bornes else hauteur_corps - 0.8 * cm
-    cadre = CadreCroquis(LARGEUR_GAUCHE, hauteur_cadre, g, _voisins_pour_dessin(g))
-    gauche = [cadre]
-    if bornes:
-        gauche += [Spacer(1, 4)] + bornes
-    gauche = KeepInFrame(LARGEUR_GAUCHE, hauteur_corps, gauche, mode="shrink", vAlign="TOP")
+    # le croquis occupe toute la hauteur de la colonne de gauche (les bornes et longueurs sont écrites sur le dessin lui-même)
+    cadre = CadreCroquis(LARGEUR_GAUCHE, hauteur_corps - 0.6 * cm, g, _voisins_pour_dessin(g))
+    gauche = KeepInFrame(LARGEUR_GAUCHE, hauteur_corps, [cadre], mode="shrink", vAlign="TOP")
 
     info = KeepInFrame(LARGEUR_DROITE, hauteur_corps - HAUTEUR_SIGNATURES, _colonne_droite(d, g), mode="shrink", vAlign="TOP")
     signatures = _signatures(["Le topographe", "Visa du Domaine"], qr, largeur=LARGEUR_DROITE, en_cellule=True)
@@ -947,8 +910,54 @@ def _signature_du_acte(m, d, user):
     return signature.pour_impression(d, user, candidats=(m.decision_par, user))
 
 
+# ------------------------------------------------------------------ plan de bornage : feuille A3, comme le plan croquis, bornes numérotées sur le dessin
+def _colonne_droite_bornage(d, b):
+    """Fiche du dossier, procès-verbal de bornage, limitrophes."""
+    from . import bornage as Bo
+
+    lignes = _lignes_dossier(d)
+    g = d.geometrie_courante
+    lignes.insert(6, ("Superficie bornée", f"{b.superficie_m2:,.0f} m²".replace(",", " ")))
+    lignes.insert(7, ("Périmètre borné", f"{_fmt(b.perimetre_m)} m"))
+    if g is not None:
+        lignes.insert(8, ("Superficie du plan croquis", f"{g.superficie_m2:,.0f} m²".replace(",", " ")))
+    elements = [_fiche(lignes, marge=2.2, largeurs=(4.4, 9.8))]
+
+    pv = Bo.proces_verbal(d)
+    elements += _titre_section("Procès-verbal de bornage")
+    elements.append(_fiche([
+        ("N° du procès-verbal", pv.reference if pv else None),
+        ("Date du bornage", f"{pv.date_etape:%d/%m/%Y}" if pv and pv.date_etape else None),
+        ("Enregistré par", pv.user.nom if pv else None),
+    ] + ([("Observations", pv.observations)] if pv and pv.observations else []), marge=2.2, largeurs=(4.4, 9.8)))
+    elements += _titre_section("Limitrophes")
+    elements.append(_fiche([("Nord", d.limitrophe_nord or "—"), ("Sud", d.limitrophe_sud or "—"),
+                            ("Est", d.limitrophe_est or "—"), ("Ouest", d.limitrophe_ouest or "—")], marge=2.2, largeurs=(2.4, 11.8)))
+    return elements
+
+
+def _bornage(d, qr=None, user=None):
+    """Plan de bornage : une seule feuille A3 paysage, le croquis du bornage à gauche (sur toute la hauteur), les informations et
+    le tableau des bornes à droite, signatures et QR code en bas à droite."""
+    from . import bornage as Bo
+
+    b = Bo.courant(d)
+    hauteur_corps = PAGE_PLAN[1] - MARGES_PLAN["haut"] - MARGES_PLAN["bas"] - HAUTEUR_ENTETE_PLAN - 0.9 * cm
+    cadre = CadreCroquis(LARGEUR_GAUCHE, hauteur_corps - 0.6 * cm, b, libelle_superficie="Superficie bornée")
+    gauche = KeepInFrame(LARGEUR_GAUCHE, hauteur_corps, [cadre], mode="shrink", vAlign="TOP")
+    info = KeepInFrame(LARGEUR_DROITE, hauteur_corps - HAUTEUR_SIGNATURES, _colonne_droite_bornage(d, b), mode="shrink", vAlign="TOP")
+    signatures = _signatures(["Le Domaine", "Le Directeur"], qr, largeur=LARGEUR_DROITE, en_cellule=True)
+    droite = Table([[info], [signatures]], colWidths=[LARGEUR_DROITE], rowHeights=[hauteur_corps - HAUTEUR_SIGNATURES, HAUTEUR_SIGNATURES])
+    zero = [("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0)]
+    droite.setStyle(TableStyle([("VALIGN", (0, 0), (-1, 0), "TOP"), ("VALIGN", (0, 1), (-1, 1), "BOTTOM")] + zero))
+    corps = Table([[gauche, "", droite]], colWidths=[LARGEUR_GAUCHE, ECART, LARGEUR_DROITE], rowHeights=[hauteur_corps])
+    corps.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP")] + zero))
+    return [_entete_plan(d, cadre.plan["n"] if cadre.plan else None, "PLAN DE BORNAGE"), Spacer(1, 0.3 * cm), corps]
+
+
 CONSTRUCTEURS = {
     "plan_croquis": _plan_croquis,
+    "bornage": _bornage,
     "certificat": _certificat,
     "extrait": _extrait,
     "attestation": _attestation,
@@ -962,13 +971,13 @@ def generer(type_doc, d, user, qr=None, mutation=None):
     """
     titre = TITRES[type_doc]
     tampon = BytesIO()
-    if type_doc == "plan_croquis":                    # une seule feuille A3 paysage, tout est placé dessus
+    if type_doc in ("plan_croquis", "bornage"):       # une seule feuille A3 paysage, tout est placé dessus
         doc = SimpleDocTemplate(
             tampon, pagesize=PAGE_PLAN, leftMargin=MARGES_PLAN["gauche"], rightMargin=MARGES_PLAN["droite"],
             topMargin=MARGES_PLAN["haut"], bottomMargin=MARGES_PLAN["bas"], title=f"{titre} - {d.numero}", author="SIGF",
         )
         pied = lambda c, dc: _pied(c, dc, d, user, qr)  # noqa: E731
-        doc.build(_plan_croquis(d, qr, user), onFirstPage=pied, onLaterPages=pied)
+        doc.build(CONSTRUCTEURS[type_doc](d, qr, user), onFirstPage=pied, onLaterPages=pied)
         return tampon.getvalue()
     doc = SimpleDocTemplate(
         tampon,

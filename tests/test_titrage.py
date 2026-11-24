@@ -396,3 +396,83 @@ def test_blocage_du_titrage_limite_aux_dossiers_visibles(app, login):
     assert login("priv1").post(f"/dossiers/{did}/titrage/bloquer", data={"type": "faux", "description": DESCRIPTION}).status_code == 404
     circuit = cree(login, identite="CNI-Z", certifier=False)
     assert login("fp").post(f"/dossiers/{circuit}/titrage/bloquer", data={"type": "faux", "description": DESCRIPTION}).status_code == 404
+
+
+# ------------------------------------------------------------------ tout dossier « Certificat émis » est suivi dans « Titrage »
+def test_le_dossier_issu_d_une_vente_entre_dans_le_titrage(app, login):
+    from test_mutations import dossier_certifie, proprio_id, vendre, vivant
+
+    did = dossier_certifie(login)
+    vendre(app, login, did, proprio_id(app, did), "tout", ("Moussa", "1"))
+    nouveau = vivant(app, did)
+    assert nouveau != did and etape(app, nouveau) == C.TIT_JO
+    assert numero(app, nouveau) in login("fp").get("/titrage?etape=journal_officiel").data.decode()
+    assert login("fp").get(f"/titrage/{nouveau}").status_code == 200
+
+
+def test_tout_dossier_certifie_apparait_dans_la_page_titrage(app, login):
+    certifies = [cree(login, identite=f"CNI-{i}") for i in range(3)]
+    circuit = cree(login, identite="CNI-C", certifier=False)
+    liste = login("dir").get("/titrage?etape=journal_officiel").data.decode().split("<tbody>")[1]
+    assert all(numero(app, d) in liste for d in certifies) and numero(app, circuit) not in liste
+    avancer(login("fp"), certifies[0], "JO", jour(-1))
+    assert numero(app, certifies[0]) in login("dir").get("/titrage?etape=plan_bornage").data.decode().split("<tbody>")[1]
+
+
+def test_la_migration_reprend_les_dossiers_deja_certifies(app, login):
+    """La migration place à l'étape « Journal officiel » les dossiers certifiés avant la mise en place du titrage."""
+    import importlib.util
+    import os
+
+    ancien = cree(login, identite="CNI-OLD")
+    en_cours = cree(login, identite="CNI-OLD2", certifier=False)
+    with app.app_context():
+        db.session.get(Dossier, ancien).etape_titre = None                   # état d'avant le titrage
+        db.session.commit()
+        chemin = os.path.join(os.path.dirname(__file__), "..", "migrations", "versions", "a4d8f2c6e913_titrage_des_dossiers_deja_certifies.py")
+        spec = importlib.util.spec_from_file_location("migration_titrage", chemin)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        executes = []
+        module.op = type("Op", (), {"execute": staticmethod(lambda sql: db.session.execute(db.text(sql)))})
+        module.upgrade()
+        db.session.commit()
+        assert db.session.get(Dossier, ancien).etape_titre == C.TIT_JO
+        assert db.session.get(Dossier, en_cours).etape_titre is None         # un dossier encore dans le circuit n'y entre pas
+
+
+# ------------------------------------------------------------------ les topographes n'ont pas accès au titrage
+def test_les_topographes_n_ont_pas_acces_au_titrage(app, login):
+    did = cree(login)
+    for nom in ("pub", "priv1", "priv2"):
+        client = login(nom)
+        assert client.get("/titrage").status_code == 404 and client.get(f"/titrage/{did}").status_code == 404, nom
+        assert client.post(f"/dossiers/{did}/titrage/bloquer", data={"type": "faux", "description": DESCRIPTION}).status_code == 404
+        assert client.get(f"/dossiers/{did}/titrage/bornage/1/telecharger").status_code == 404
+    pub = login("pub")
+    menu = pub.get("/dossiers").data.decode().split('id="menu-lateral"')[1].split("</nav>")[0]
+    assert "Titrage" not in menu and "/titrage" not in menu
+    assert "Titrage" not in pub.get("/bienvenue").data.decode().split("Accès rapides")[1]
+    page = pub.get(f"/dossiers/{did}").data.decode()
+    assert 'id="titrage"' not in page and "Ouvrir le suivi du titrage" not in page
+    assert "À faire : Journal officiel" not in pub.get("/dossiers").data.decode()                   # pas non plus dans la liste
+    assert pub.get(f"/dossiers/{did}").status_code == 200                                              # la fiche du dossier reste accessible
+    assert nb_a_traiter_est_nul(app, "pub")
+
+
+def nb_a_traiter_est_nul(app, username):
+    from app import titrage as T
+
+    with app.app_context():
+        return T.nb_a_traiter(User.query.filter_by(username=username).one()) == 0
+
+
+def test_les_autres_comptes_gardent_l_acces(app, login):
+    did = cree(login)
+    for nom in ("admin", "dir", "dom", "fp"):
+        client = login(nom)
+        assert client.get("/titrage").status_code == 200 and client.get(f"/titrage/{did}").status_code == 200, nom
+    for nom in ("admin", "dir", "dom"):
+        menu = login(nom).get("/dossiers").data.decode().split('id="menu-lateral"')[1].split("</nav>")[0]
+        assert "Titrage" in menu, nom
+    assert "À faire : Journal officiel" in login("dir").get("/dossiers").data.decode()

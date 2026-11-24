@@ -29,7 +29,7 @@ def create_app(overrides=None):
     login_manager.init_app(app)
     csrf.init_app(app)
 
-    from . import arbre, auth, blocages, carte, signature, terrain, titrage, corrections, documents, models, mutations, partages, proprietaires, users, verification, views  # noqa: F401
+    from . import arbre, auth, blocages, carte, signature, terrain, titrage, bornage, corrections, documents, models, mutations, partages, proprietaires, users, verification, views  # noqa: F401
 
     app.register_blueprint(auth.bp)
     app.register_blueprint(views.bp)
@@ -45,6 +45,7 @@ def create_app(overrides=None):
     app.register_blueprint(signature.bp)
     app.register_blueprint(terrain.bp)
     app.register_blueprint(titrage.bp)
+    app.register_blueprint(bornage.bp)
 
     @app.route("/favicon.ico")
     def favicon():
