@@ -183,10 +183,10 @@ def test_import_ancien_dossier(app, login):
 
 
 def test_import_ancien_refuse_selon_role(app, login):
-    for qui in ("pub", "priv1"):
+    for qui in ("priv1",):                                                       # le topographe privé ne peut pas numériser d'ancien dossier
         r = login(qui).post("/dossiers/ancien/nouveau", data=donnees_ancien(), content_type="multipart/form-data")
         assert r.status_code == 403
-    for qui in ("dom", "dir", "admin"):
+    for qui in ("dom", "dir", "admin", "pub"):
         r = login(qui).get("/dossiers/ancien/nouveau")
         assert r.status_code == 200
 

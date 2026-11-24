@@ -53,22 +53,22 @@ def test_page_des_anciens_dossiers(app, login):
 
 
 def test_bouton_ajouter_un_ancien_dossier(app, login):
-    for qui in ("dom", "dir", "admin"):
+    for qui in ("dom", "dir", "admin", "pub"):                                  # le topographe public peut aussi ajouter des anciens dossiers
         page = login(qui).get("/dossiers/anciens").data.decode()
         assert "Ajouter un ancien dossier" in page and 'href="/dossiers/ancien/nouveau"' in page, qui
-    # le topographe public consulte la liste mais ne peut pas ajouter ; le topographe privé n'y a pas accès
-    pub = login("pub").get("/dossiers/anciens").data.decode()
-    assert "Ajouter un ancien dossier" not in pub and "Anciens dossiers" in pub
+    # le topographe privé n'a pas accès aux anciens dossiers
     assert login("priv1").get("/dossiers/anciens").status_code == 404
+    assert login("priv1").get("/dossiers/ancien/nouveau").status_code == 403
     assert app.test_client().get("/dossiers/anciens").status_code == 302
-    assert login("pub").get("/dossiers/ancien/nouveau").status_code == 403
+    assert login("pub").get("/dossiers/ancien/nouveau").status_code == 200
 
 
 def test_etat_vide_propose_d_ajouter(app, login):
     page = login("dom").get("/dossiers/anciens").data.decode()
     assert "Aucun ancien dossier pour le moment" in page and "Ajouter le premier ancien dossier" in page
     page = login("pub").get("/dossiers/anciens").data.decode()
-    assert "Aucun ancien dossier pour le moment" in page and "Ajouter le premier" not in page
+    assert "Aucun ancien dossier pour le moment" in page and "Ajouter le premier ancien dossier" in page             # le topographe public aussi
+    assert "Ajouter le premier" not in login("priv1").get("/dossiers/anciens").data.decode()
     importer(login("dom"))
     assert "Aucun ancien dossier ne correspond" in login("dom").get("/dossiers/anciens?q=introuvable").data.decode()
 
@@ -166,3 +166,21 @@ def test_liens_de_retour(app, login):
     assert annuler == "/dossiers/anciens"
     annuler = re.search(r'<a class="btn btn-link" href="([^"]+)">Annuler</a>', dom.get("/dossiers/nouveau").data.decode())
     assert annuler is None or annuler.group(1) == "/dossiers"
+
+
+def test_le_topographe_public_numerise_un_ancien_dossier(app, login):
+    from app import constants as C
+    from app.models import Dossier
+
+    pub = login("pub")
+    r = pub.post("/dossiers/ancien/nouveau", content_type="multipart/form-data", data={
+        "proprio_nom": "Hachim", "proprio_prenom": "Saïd", "proprio_identite": "CNI-PUB-1", "ile_id": "1", "commune": "Moroni",
+        "reference_archive": "A-2001/3", "annee": "2001", "type_document": ["Titre foncier"], "libelle_document": [""],
+        "fichiers": (io.BytesIO(b"%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF"), "titre.pdf")})
+    assert r.status_code == 302
+    with app.app_context():
+        d = Dossier.query.filter_by(origine=C.ORIGINE_ANCIEN).one()
+        assert d.statut == C.ARCHIVE and d.cree_par.username == "pub" and d.reference_archive == "A-2001/3"
+        did = d.id
+    assert numero(app, did) in pub.get("/dossiers/anciens").data.decode()
+    assert pub.get(f"/dossiers/{did}").status_code == 200

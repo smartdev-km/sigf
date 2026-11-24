@@ -135,7 +135,7 @@ def peut_creer_dossier(user):
 
 def peut_importer_ancien(user):
     """Saisie des dossiers papier numérisés (hors circuit)."""
-    return user.role in (C.ADMIN, C.DIRECTEUR, C.DOMAINE)
+    return user.role in (C.ADMIN, C.DIRECTEUR, C.DOMAINE, C.TOPO_PUBLIC)
 
 
 def dossiers_a_traiter(user):

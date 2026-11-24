@@ -38,12 +38,12 @@ def test_acces_rapides_selon_le_role(app, login):
         "admin": {"/utilisateurs/", "/mutations", "/proprietaires", "/blocages", "/carte", "/dossiers/nouveau", "/dossiers/anciens", "/dossiers/ancien/nouveau", "/verifier", "/profil"},
         "dir": {"/utilisateurs/", "/mutations", "/proprietaires", "/blocages", "/carte", "/dossiers/nouveau", "/dossiers/anciens", "/dossiers/ancien/nouveau", "/verifier", "/profil"},
         "dom": {"/mutations", "/proprietaires", "/blocages", "/carte", "/dossiers/anciens", "/dossiers/ancien/nouveau", "/verifier", "/profil"},
-        "pub": {"/mutations", "/proprietaires", "/blocages", "/carte", "/dossiers/nouveau", "/dossiers/anciens", "/verifier", "/profil"},
+        "pub": {"/mutations", "/proprietaires", "/blocages", "/carte", "/dossiers/nouveau", "/dossiers/anciens", "/dossiers/ancien/nouveau", "/verifier", "/profil"},
         "priv1": {"/carte", "/dossiers/nouveau", "/verifier", "/profil", "/dossiers", "/proprietaires"},
     }
     interdits = {
         "dom": {"/utilisateurs/", "/dossiers/nouveau"},
-        "pub": {"/utilisateurs/", "/dossiers/ancien/nouveau"},
+        "pub": {"/utilisateurs/"},
         "priv1": {"/utilisateurs/", "/mutations", "/blocages", "/dossiers/anciens", "/dossiers/ancien/nouveau"},
     }
     for role, liens in attendus.items():

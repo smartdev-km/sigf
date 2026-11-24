@@ -76,7 +76,7 @@ profil utilisateur, gestion des comptes.
 | **Administrateur** | Gère tous les comptes, voit toutes les îles, consulte les signatures des Directeurs. Jamais limité à une île. |
 | **Directeur** | Valide les dossiers, mutations et corrections ; lève les blocages ; dépose sa signature (page *Paramètres*) ; crée les topographes privés. |
 | **Domaine** | Saisit le numéro RTS et les mutations, importe les anciens dossiers, propose corrections et modifications de propriétaires. |
-| **Topographe public** | Ouvre les dossiers publics, termine le plan croquis, saisit le RTC, dépose les tracés. |
+| **Topographe public** | Ouvre les dossiers publics, termine le plan croquis, saisit le RTC, dépose les tracés, numérise des anciens dossiers. |
 | **Topographe privé** | Ne voit que **ses** dossiers et leurs propriétaires ; donne son avis (il peut y joindre jusqu'à 5 documents) puis le dossier passe en lecture seule pour lui. |
 | **Fonction publique** | Ne voit que les dossiers entrés en **titrage** (de son île) : enregistre le Journal officiel et le Journal de clôture. |
 
